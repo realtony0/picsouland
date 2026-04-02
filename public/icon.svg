@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PicsouLand</title>
+  <desc id="desc">Icone de l'application PicsouLand.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#d45b1f" />
+      <stop offset="100%" stop-color="#f2bb4d" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  <circle cx="390" cy="124" r="44" fill="#fff3d8" opacity="0.7" />
+  <path
+    d="M152 380V132h142c78 0 120 36 120 96 0 66-48 106-126 106h-58v46H152Zm78-110h50c36 0 56-18 56-44 0-25-18-40-52-40h-54v84Z"
+    fill="#fffaf3"
+  />
+</svg>

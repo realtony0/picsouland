@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Favicon PicsouLand</title>
+  <desc id="desc">Favicon rond dore avec le monogramme P de PicsouLand.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f6c759"/>
+      <stop offset="60%" stop-color="#df9221"/>
+      <stop offset="100%" stop-color="#c76414"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="32" fill="#fff7ef"/>
+  <circle cx="64" cy="64" r="48" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#fff4d4" stroke-width="6" opacity="0.75"/>
+  <path d="M48 93V34h29c21 0 32 9 32 24 0 17-13 28-34 28H62v7H48Zm14-20h12c12 0 19-5 19-13 0-8-6-12-17-12H62v25Z" fill="#fffaf1"/>
+  <path d="M97 27l4 9 9 4-9 4-4 9-4-9-9-4 9-4 4-9Z" fill="#fff7df"/>
+</svg>

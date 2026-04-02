@@ -1,0 +1,24 @@
+.DS_Store
+.next
+node_modules
+.env.local
+npm-debug.log*
+
+# Source images and local duplicates not used by the Next.js app
+assets
+allstar.jpeg
+buzzerbeater
+coolbar colaice.jpeg
+coolbar mixberry.png
+coolbar peachice.png
+coolbar watermelon.png
+coolmint
+hyperjoy biuerazz.jpg
+hyperjoy kiwi passion fruit guava.jpg
+hyperjoy tripple berry.jpg
+hyperjoy vimto.jpg
+hyperjoy watermelon bubble gum.jpg
+hyperjoy watermelon ice.jpg
+peach berry
+pineapplebananaice.webp
+red bull.webp
