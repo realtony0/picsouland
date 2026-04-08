@@ -1120,6 +1120,230 @@ img {
   }
 }
 
+/* ========== PWA install ========== */
+
+.install-cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 91, 31, 0.4);
+  background: linear-gradient(135deg, #ffb482, #d45b1f);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 14px 30px rgba(212, 91, 31, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: install-pulse 2.6s ease-in-out infinite;
+}
+
+.install-cta-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 36px rgba(212, 91, 31, 0.4);
+}
+
+.install-cta-icon {
+  width: 18px;
+  height: 18px;
+}
+
+@keyframes install-pulse {
+  0%,
+  100% {
+    box-shadow: 0 14px 30px rgba(212, 91, 31, 0.35);
+  }
+  50% {
+    box-shadow: 0 14px 40px rgba(212, 91, 31, 0.55);
+  }
+}
+
+.ios-install-modal {
+  width: min(520px, 100%);
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px 28px;
+  box-shadow: var(--shadow);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.ios-install-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(36, 30, 24, 0.08);
+  border: none;
+  color: var(--ink);
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ios-install-close:hover {
+  background: rgba(36, 30, 24, 0.16);
+}
+
+.ios-install-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 60px;
+}
+
+.install-badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 6px 14px;
+  background: rgba(212, 91, 31, 0.14);
+  color: var(--accent-strong);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.ios-install-hero h2 {
+  font-family: var(--font-display), serif;
+  font-size: 1.8rem;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.ios-install-intro {
+  color: var(--muted);
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.ios-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ios-step {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 24px rgba(39, 27, 17, 0.06);
+}
+
+.ios-step-number {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display), serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ios-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ios-step-body strong {
+  font-size: 1.02rem;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.ios-step-body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.ios-step-visual {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.ios-step-visual svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ios-install-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ios-install-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+  .install-cta-button span {
+    display: none;
+  }
+
+  .install-cta-button {
+    padding: 10px 12px;
+  }
+
+  .ios-install-modal {
+    padding: 28px 20px 24px;
+    border-radius: 22px;
+  }
+
+  .ios-install-hero h2 {
+    font-size: 1.5rem;
+  }
+
+  .ios-step {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .ios-step-number {
+    width: 38px;
+    height: 38px;
+    font-size: 1.2rem;
+  }
+
+  .ios-step-visual {
+    width: 40px;
+    height: 40px;
+  }
+}
+
 /* ========== Admin panel ========== */
 
 .admin-gate {

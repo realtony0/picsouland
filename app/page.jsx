@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   accounts: "picsouland_accounts",
   ageGate: "picsouland_age_gate",
   session: "picsouland_session_phone",
+  installDismissed: "picsouland_install_dismissed",
 };
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
@@ -265,6 +266,10 @@ export default function HomePage() {
     phone: "",
     pin: "",
   });
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [deviceKind, setDeviceKind] = useState("unknown");
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false);
 
   useEffect(() => {
     const storedAccounts = readStoredAccounts();
@@ -279,6 +284,66 @@ export default function HomePage() {
 
     setAgeGateStatus(ageGateValue === "yes" ? "granted" : "pending");
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const userAgent = window.navigator.userAgent || "";
+    const isIOS =
+      /iPad|iPhone|iPod/.test(userAgent) ||
+      (userAgent.includes("Mac") && "ontouchend" in document);
+    const isAndroid = /Android/.test(userAgent);
+
+    setDeviceKind(isIOS ? "ios" : isAndroid ? "android" : "desktop");
+
+    const standaloneMatch =
+      window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    const iosStandalone = window.navigator.standalone === true;
+    setIsStandalone(Boolean(standaloneMatch || iosStandalone));
+
+    function handleBeforeInstall(event) {
+      event.preventDefault();
+      setInstallPromptEvent(event);
+    }
+
+    function handleInstalled() {
+      setInstallPromptEvent(null);
+      setIsInstallGuideOpen(false);
+      setIsStandalone(true);
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (ageGateStatus !== "granted") {
+      return;
+    }
+
+    if (deviceKind !== "ios" || isStandalone) {
+      return;
+    }
+
+    const dismissed = window.localStorage.getItem(STORAGE_KEYS.installDismissed);
+
+    if (dismissed === "yes") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIsInstallGuideOpen(true);
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [ageGateStatus, deviceKind, isStandalone]);
 
   const currentAccount =
     accounts.find((account) => account.phone === currentUserPhone) || null;
@@ -497,6 +562,34 @@ export default function HomePage() {
     setCart({});
   }
 
+  async function triggerInstall() {
+    if (installPromptEvent) {
+      try {
+        installPromptEvent.prompt();
+        const choice = await installPromptEvent.userChoice;
+
+        if (choice && choice.outcome === "accepted") {
+          setInstallPromptEvent(null);
+          setIsInstallGuideOpen(false);
+        }
+      } catch {
+        setIsInstallGuideOpen(true);
+      }
+
+      return;
+    }
+
+    setIsInstallGuideOpen(true);
+  }
+
+  function dismissInstallGuide() {
+    setIsInstallGuideOpen(false);
+    window.localStorage.setItem(STORAGE_KEYS.installDismissed, "yes");
+  }
+
+  const canShowInstallButton =
+    !isStandalone && (installPromptEvent !== null || deviceKind === "ios");
+
   if (ageGateStatus !== "granted") {
     return (
       <main className="age-gate-shell">
@@ -564,6 +657,30 @@ export default function HomePage() {
               <a href="#prix">Prix</a>
               <a href="#installer">Installer</a>
             </nav>
+
+            {canShowInstallButton ? (
+              <button
+                className="install-cta-button"
+                onClick={triggerInstall}
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="install-cta-icon"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 4v10m0 0l-4-4m4 4l4-4M5 18h14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                  />
+                </svg>
+                <span>Installer</span>
+              </button>
+            ) : null}
 
             <button
               aria-label="Ouvrir le panier"
@@ -1095,6 +1212,142 @@ export default function HomePage() {
             )}
 
             <p className="account-status">{authStatus}</p>
+          </section>
+        </div>
+      ) : null}
+
+      {isInstallGuideOpen && deviceKind === "ios" && !isStandalone ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="ios-install-title"
+            aria-modal="true"
+            className="ios-install-modal"
+            role="dialog"
+          >
+            <button
+              aria-label="Fermer"
+              className="ios-install-close"
+              onClick={dismissInstallGuide}
+              type="button"
+            >
+              Fermer
+            </button>
+
+            <div className="ios-install-hero">
+              <span className="install-badge">Installer sur iPhone</span>
+              <h2 id="ios-install-title">
+                Ajoute PicsouLand sur ton ecran d&apos;accueil
+              </h2>
+              <p className="ios-install-intro">
+                Tu vas pouvoir ouvrir la boutique en un clic comme une vraie
+                application. Suis simplement les 3 etapes ci-dessous.
+              </p>
+            </div>
+
+            <ol className="ios-steps">
+              <li className="ios-step">
+                <span className="ios-step-number">1</span>
+                <div className="ios-step-body">
+                  <strong>Touche le bouton Partager</strong>
+                  <p>
+                    Le petit carre avec une fleche qui monte, en bas de Safari.
+                  </p>
+                </div>
+                <div className="ios-step-visual" aria-hidden="true">
+                  <svg viewBox="0 0 48 56">
+                    <rect
+                      x="10"
+                      y="20"
+                      width="28"
+                      height="32"
+                      rx="5"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                    <path
+                      d="M24 4 v28 M14 14 l10-10 10 10"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+              </li>
+
+              <li className="ios-step">
+                <span className="ios-step-number">2</span>
+                <div className="ios-step-body">
+                  <strong>Descends et touche &quot;Sur l&apos;ecran d&apos;accueil&quot;</strong>
+                  <p>Cherche la ligne avec un petit plus (+) dans un carre.</p>
+                </div>
+                <div className="ios-step-visual" aria-hidden="true">
+                  <svg viewBox="0 0 48 48">
+                    <rect
+                      x="6"
+                      y="6"
+                      width="36"
+                      height="36"
+                      rx="9"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                    <path
+                      d="M24 15 v18 M15 24 h18"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+              </li>
+
+              <li className="ios-step">
+                <span className="ios-step-number">3</span>
+                <div className="ios-step-body">
+                  <strong>Touche &quot;Ajouter&quot; en haut a droite</strong>
+                  <p>L&apos;icone PicsouLand apparait sur ton ecran. C&apos;est pret !</p>
+                </div>
+                <div className="ios-step-visual" aria-hidden="true">
+                  <svg viewBox="0 0 48 48">
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                    <path
+                      d="M14 24 l7 8 l13-16"
+                      stroke="currentColor"
+                      strokeWidth="3.5"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+              </li>
+            </ol>
+
+            <div className="ios-install-actions">
+              <button
+                className="button primary full"
+                onClick={dismissInstallGuide}
+                type="button"
+              >
+                J&apos;ai compris
+              </button>
+            </div>
+
+            <p className="ios-install-note">
+              Astuce : ouvre ce site dans Safari si tu vois pas le bouton
+              Partager. Dans les autres navigateurs il peut etre cache.
+            </p>
           </section>
         </div>
       ) : null}

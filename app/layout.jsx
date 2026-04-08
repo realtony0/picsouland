@@ -1,5 +1,6 @@
 import { DM_Serif_Display, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import ServiceWorkerRegister from "./sw-register";
 
 const displayFont = DM_Serif_Display({
   subsets: ["latin"],
@@ -38,6 +39,7 @@ export default function RootLayout({ children }) {
     <html lang="fr">
       <body className={`${displayFont.variable} ${bodyFont.variable}`}>
         {children}
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
