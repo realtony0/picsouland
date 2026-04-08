@@ -149,6 +149,50 @@ const heroProducts = [
   },
 ];
 
+const deliveryZones = [
+  {
+    price: 1000,
+    areas: ["Ngor", "Virage", "Aeroport LSS", "Mamelles", "Ouakam"],
+  },
+  {
+    price: 1500,
+    areas: [
+      "Mermoz",
+      "Sacre-Coeur",
+      "Point E",
+      "Fann",
+      "Grand Dakar",
+      "HLM",
+      "Liberte 1",
+      "Liberte 2",
+      "Liberte 3",
+      "Liberte 4",
+      "Liberte 5",
+      "Liberte 6",
+    ],
+  },
+  {
+    price: 2000,
+    areas: ["Plateau", "Hann", "Bel Air", "Pikine", "Guediawaye"],
+  },
+];
+
+const OTHER_DELIVERY_AREA = "Autre zone (a confirmer)";
+
+function getDeliveryPrice(area) {
+  if (!area) {
+    return 0;
+  }
+
+  for (const zone of deliveryZones) {
+    if (zone.areas.includes(area)) {
+      return zone.price;
+    }
+  }
+
+  return 0;
+}
+
 const formatter = new Intl.NumberFormat("fr-FR");
 
 function formatPrice(value) {
@@ -195,12 +239,13 @@ function formatWhatsappNumber(value) {
   return digits;
 }
 
-function buildMessage(entries, customer) {
+function buildMessage(entries, customer, deliveryPrice) {
   if (!entries.length) {
     return "";
   }
 
-  const total = entries.reduce((sum, item) => sum + item.subtotal, 0);
+  const subtotal = entries.reduce((sum, item) => sum + item.subtotal, 0);
+  const total = subtotal + (deliveryPrice || 0);
   const lines = [
     "Bonjour, je souhaite commander :",
     "",
@@ -209,15 +254,27 @@ function buildMessage(entries, customer) {
         `- ${item.brand} ${item.name} x${item.quantity} = ${formatPrice(item.subtotal)}`,
     ),
     "",
-    `Total : ${formatPrice(total)}`,
+    `Sous-total : ${formatPrice(subtotal)}`,
   ];
 
-  if (customer.name.trim()) {
-    lines.push(`Nom : ${customer.name.trim()}`);
+  if (customer.area.trim()) {
+    if (deliveryPrice > 0) {
+      lines.push(`Livraison ${customer.area.trim()} : ${formatPrice(deliveryPrice)}`);
+    } else if (customer.area.trim() === OTHER_DELIVERY_AREA) {
+      lines.push("Livraison : a confirmer (autre zone)");
+    }
   }
 
-  if (customer.area.trim()) {
+  lines.push(`Total : ${formatPrice(total)}`);
+
+  if (customer.name.trim()) {
+    lines.push("", `Nom : ${customer.name.trim()}`);
+  }
+
+  if (customer.area.trim() && customer.area.trim() !== OTHER_DELIVERY_AREA) {
     lines.push(`Zone : ${customer.area.trim()}`);
+  } else if (customer.area.trim() === OTHER_DELIVERY_AREA) {
+    lines.push("Zone : autre (a preciser)");
   }
 
   if (customer.phone.trim()) {
@@ -380,7 +437,9 @@ export default function HomePage() {
 
   const cartTotal = cartEntries.reduce((sum, item) => sum + item.subtotal, 0);
   const cartCount = cartEntries.reduce((sum, item) => sum + item.quantity, 0);
-  const generatedMessage = buildMessage(cartEntries, customer);
+  const deliveryPrice = getDeliveryPrice(customer.area);
+  const grandTotal = cartTotal + deliveryPrice;
+  const generatedMessage = buildMessage(cartEntries, customer, deliveryPrice);
 
   function persistAccounts(nextAccounts) {
     setAccounts(nextAccounts);
@@ -542,6 +601,11 @@ export default function HomePage() {
   async function prepareOrder() {
     if (!generatedMessage) {
       window.alert("Ajoute au moins un produit avant de preparer la commande.");
+      return;
+    }
+
+    if (!customer.area.trim()) {
+      window.alert("Choisis ta zone de livraison avant de preparer la commande.");
       return;
     }
 
@@ -1101,13 +1165,29 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Quartier / ville
-                <input
+                Zone de livraison
+                <select
+                  className="delivery-select"
                   onChange={(event) => updateCustomerField("area", event.target.value)}
-                  placeholder="Ex : Dakar, Parcelles Assainies"
-                  type="text"
                   value={customer.area}
-                />
+                >
+                  <option value="">Choisis ta zone</option>
+                  {deliveryZones.map((zone) => (
+                    <optgroup
+                      key={zone.price}
+                      label={`Livraison ${formatPrice(zone.price)}`}
+                    >
+                      {zone.areas.map((area) => (
+                        <option key={area} value={area}>
+                          {area}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                  <option value={OTHER_DELIVERY_AREA}>
+                    Autre zone (prix a confirmer)
+                  </option>
+                </select>
               </label>
               <label>
                 Telephone
@@ -1120,9 +1200,27 @@ export default function HomePage() {
               </label>
             </div>
 
-            <div className="cart-total-row">
-              <span>Total</span>
-              <strong>{formatPrice(cartTotal)}</strong>
+            <div className="cart-totals">
+              <div className="cart-subtotal-row">
+                <span>Sous-total</span>
+                <span>{formatPrice(cartTotal)}</span>
+              </div>
+              {customer.area && customer.area !== OTHER_DELIVERY_AREA ? (
+                <div className="cart-delivery-row">
+                  <span>Livraison - {customer.area}</span>
+                  <span>{formatPrice(deliveryPrice)}</span>
+                </div>
+              ) : null}
+              {customer.area === OTHER_DELIVERY_AREA ? (
+                <div className="cart-delivery-row">
+                  <span>Livraison - autre zone</span>
+                  <span>a confirmer</span>
+                </div>
+              ) : null}
+              <div className="cart-total-row">
+                <span>Total</span>
+                <strong>{formatPrice(grandTotal)}</strong>
+              </div>
             </div>
 
             <div className="cart-actions">

@@ -785,6 +785,7 @@ img {
 }
 
 .customer-fields input,
+.customer-fields select,
 .account-form input {
   width: 100%;
   padding: 14px 16px;
@@ -794,12 +795,53 @@ img {
   color: var(--ink);
 }
 
+.delivery-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path fill='%23241e18' d='M5 8l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px;
+  padding-right: 42px;
+  cursor: pointer;
+}
+
+.delivery-select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cart-totals {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cart-subtotal-row,
+.cart-delivery-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.cart-delivery-row {
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+
 .cart-total-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0 0;
-  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-top: 6px;
+  border-top: 1px dashed var(--line);
+  font-size: 1.05rem;
 }
 
 .install-section {
