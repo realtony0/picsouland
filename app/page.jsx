@@ -270,6 +270,7 @@ export default function HomePage() {
   const [deviceKind, setDeviceKind] = useState("unknown");
   const [isStandalone, setIsStandalone] = useState(false);
   const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const storedAccounts = readStoredAccounts();
@@ -587,6 +588,14 @@ export default function HomePage() {
     window.localStorage.setItem(STORAGE_KEYS.installDismissed, "yes");
   }
 
+  function closeMobileMenu() {
+    setIsMobileMenuOpen(false);
+  }
+
+  function toggleMobileMenu() {
+    setIsMobileMenuOpen((open) => !open);
+  }
+
   const canShowInstallButton =
     !isStandalone && (installPromptEvent !== null || deviceKind === "ios");
 
@@ -678,7 +687,7 @@ export default function HomePage() {
                     strokeWidth="1.8"
                   />
                 </svg>
-                <span>Installer</span>
+                <span className="install-cta-label">Installer</span>
               </button>
             ) : null}
 
@@ -712,9 +721,75 @@ export default function HomePage() {
               onClick={() => openAccountPanel(currentAccount ? "login" : "signup")}
               type="button"
             >
-              {currentAccount ? `Compte: ${currentAccount.name}` : "Mon compte"}
+              <svg
+                aria-hidden="true"
+                className="account-icon"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  cx="12"
+                  cy="8"
+                  r="4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M4 20c1.5-3.5 4.8-5 8-5s6.5 1.5 8 5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="1.8"
+                />
+              </svg>
+              <span className="account-button-label">
+                {currentAccount ? `Compte: ${currentAccount.name}` : "Mon compte"}
+              </span>
+            </button>
+
+            <button
+              aria-controls="mobile-menu"
+              aria-expanded={isMobileMenuOpen}
+              aria-label={
+                isMobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"
+              }
+              className={`mobile-menu-button ${isMobileMenuOpen ? "open" : ""}`}
+              onClick={toggleMobileMenu}
+              type="button"
+            >
+              <span className="mobile-menu-bar" />
+              <span className="mobile-menu-bar" />
+              <span className="mobile-menu-bar" />
             </button>
           </div>
+
+          {isMobileMenuOpen ? (
+            <div className="mobile-menu" id="mobile-menu">
+              <nav aria-label="Menu mobile" className="mobile-menu-nav">
+                <a href="#catalogue" onClick={closeMobileMenu}>
+                  Catalogue
+                </a>
+                <a href="#prix" onClick={closeMobileMenu}>
+                  Prix
+                </a>
+                <a href="#installer" onClick={closeMobileMenu}>
+                  Installation sur l&apos;ecran
+                </a>
+              </nav>
+              <button
+                className="mobile-menu-account"
+                onClick={() => {
+                  closeMobileMenu();
+                  openAccountPanel(currentAccount ? "login" : "signup");
+                }}
+                type="button"
+              >
+                {currentAccount
+                  ? `Mon compte - ${currentAccount.name}`
+                  : "Mon compte / Se connecter"}
+              </button>
+            </div>
+          ) : null}
         </header>
 
         <section className="section hero" id="top">
