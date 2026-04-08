@@ -229,6 +229,14 @@ img {
   width: 20px;
   height: 20px;
   display: none;
+  flex-shrink: 0;
+}
+
+.header-cluster .cart-icon-button,
+.header-cluster .account-button,
+.header-cluster .mobile-menu-button,
+.header-cluster .install-cta-button {
+  flex-shrink: 0;
 }
 
 .account-button-label {
@@ -301,6 +309,8 @@ img {
 .cart-icon {
   width: 22px;
   height: 22px;
+  display: block;
+  flex-shrink: 0;
 }
 
 .cart-badge {
@@ -1369,6 +1379,7 @@ img {
 .install-cta-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 18px;
   border-radius: 999px;
@@ -1377,6 +1388,7 @@ img {
   color: #fff;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
   box-shadow: 0 14px 30px rgba(212, 91, 31, 0.35);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   animation: install-pulse 2.6s ease-in-out infinite;
@@ -1388,8 +1400,10 @@ img {
 }
 
 .install-cta-icon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
+  display: block;
+  flex-shrink: 0;
 }
 
 @keyframes install-pulse {

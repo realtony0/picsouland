@@ -734,6 +734,7 @@ export default function HomePage() {
 
             {canShowInstallButton ? (
               <button
+                aria-label="Installer l'application"
                 className="install-cta-button"
                 onClick={triggerInstall}
                 type="button"
@@ -741,7 +742,9 @@ export default function HomePage() {
                 <svg
                   aria-hidden="true"
                   className="install-cta-icon"
+                  height="22"
                   viewBox="0 0 24 24"
+                  width="22"
                 >
                   <path
                     d="M12 4v10m0 0l-4-4m4 4l4-4M5 18h14"
@@ -749,7 +752,7 @@ export default function HomePage() {
                     stroke="currentColor"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth="1.8"
+                    strokeWidth="2.4"
                   />
                 </svg>
                 <span className="install-cta-label">Installer</span>
@@ -765,7 +768,9 @@ export default function HomePage() {
               <svg
                 aria-hidden="true"
                 className="cart-icon"
+                height="22"
                 viewBox="0 0 24 24"
+                width="22"
               >
                 <path
                   d="M3 5h2l2.2 9.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 8H7.4"
@@ -789,7 +794,9 @@ export default function HomePage() {
               <svg
                 aria-hidden="true"
                 className="account-icon"
+                height="22"
                 viewBox="0 0 24 24"
+                width="22"
               >
                 <circle
                   cx="12"
@@ -797,14 +804,14 @@ export default function HomePage() {
                   r="4"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="2"
                 />
                 <path
                   d="M4 20c1.5-3.5 4.8-5 8-5s6.5 1.5 8 5"
                   fill="none"
                   stroke="currentColor"
                   strokeLinecap="round"
-                  strokeWidth="1.8"
+                  strokeWidth="2"
                 />
               </svg>
               <span className="account-button-label">
