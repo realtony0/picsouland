@@ -1111,6 +1111,28 @@ img {
     background: rgba(212, 91, 31, 0.1);
   }
 
+  .mobile-menu-install {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(135deg, #ffb482, #d45b1f);
+    color: #fff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 10px 22px rgba(212, 91, 31, 0.3);
+  }
+
+  .mobile-menu-install:hover,
+  .mobile-menu-install:active {
+    background: linear-gradient(135deg, #ffa066, #a84413) !important;
+  }
+
+  .mobile-menu-install-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
   .mobile-menu-account {
     padding: 12px 14px;
     border-radius: 14px;
@@ -1513,6 +1535,222 @@ img {
   .ios-step-visual {
     width: 40px;
     height: 40px;
+  }
+}
+
+/* ========== Installer page ========== */
+
+.installer-shell {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.installer-top {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  width: fit-content;
+  padding: 6px 0;
+}
+
+.back-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.back-link:hover {
+  color: var(--accent);
+}
+
+.installer-top h1 {
+  font-family: var(--font-display), serif;
+  font-size: clamp(2rem, 6vw, 2.8rem);
+  margin: 4px 0 0;
+  line-height: 1.1;
+}
+
+.installer-lead {
+  color: var(--muted);
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  max-width: 640px;
+}
+
+.installer-success {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 22px;
+  background: linear-gradient(135deg, rgba(13, 118, 102, 0.14), rgba(13, 118, 102, 0.05));
+  border: 1px solid rgba(13, 118, 102, 0.3);
+  border-radius: 22px;
+}
+
+.installer-success-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--teal);
+  flex-shrink: 0;
+}
+
+.installer-success-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.installer-success strong {
+  display: block;
+  font-size: 1.1rem;
+  color: var(--teal);
+}
+
+.installer-success p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.installer-perks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.installer-perks article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.perk-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(212, 91, 31, 0.14);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.perk-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.installer-perks strong {
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.installer-perks p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.installer-platform {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.installer-platform.highlight {
+  border-color: rgba(212, 91, 31, 0.45);
+  box-shadow: 0 22px 50px rgba(212, 91, 31, 0.18);
+}
+
+.platform-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.platform-heading .install-badge {
+  align-self: flex-start;
+}
+
+.platform-heading h2 {
+  font-family: var(--font-display), serif;
+  font-size: 1.8rem;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.platform-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.install-now-button {
+  font-size: 1.05rem;
+  padding: 14px 20px;
+}
+
+.platform-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+}
+
+.installer-feedback {
+  text-align: center;
+  color: var(--teal);
+  font-weight: 600;
+  margin: 0;
+}
+
+.installer-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+@media (max-width: 760px) {
+  .installer-shell {
+    padding: 24px 16px 48px;
+    gap: 22px;
+  }
+
+  .installer-perks {
+    grid-template-columns: 1fr;
+  }
+
+  .installer-platform {
+    padding: 22px;
+  }
+
+  .platform-heading h2 {
+    font-size: 1.5rem;
   }
 }
 

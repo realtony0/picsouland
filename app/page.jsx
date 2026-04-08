@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const STORAGE_KEYS = {
@@ -664,7 +665,7 @@ export default function HomePage() {
             <nav aria-label="Navigation principale" className="site-nav">
               <a href="#catalogue">Catalogue</a>
               <a href="#prix">Prix</a>
-              <a href="#installer">Installer</a>
+              <Link href="/installer">Installer l&apos;app</Link>
             </nav>
 
             {canShowInstallButton ? (
@@ -772,9 +773,27 @@ export default function HomePage() {
                 <a href="#prix" onClick={closeMobileMenu}>
                   Prix
                 </a>
-                <a href="#installer" onClick={closeMobileMenu}>
-                  Installation sur l&apos;ecran
-                </a>
+                <Link
+                  className="mobile-menu-install"
+                  href="/installer"
+                  onClick={closeMobileMenu}
+                >
+                  <span>Installer l&apos;app</span>
+                  <svg
+                    aria-hidden="true"
+                    className="mobile-menu-install-icon"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </Link>
               </nav>
               <button
                 className="mobile-menu-account"
