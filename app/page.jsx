@@ -202,11 +202,11 @@ const LOYALTY = {
       value: 1500,
     },
     {
-      id: "half-off",
+      id: "half-puff",
       cost: 100,
-      label: "-50% sur la commande",
-      type: "percent",
-      value: 0.5,
+      label: "4 000 F CFA offert (moitie d'une puff)",
+      type: "flat",
+      value: 4000,
     },
   ],
 };
