@@ -1594,6 +1594,234 @@ img {
   }
 }
 
+/* ========== Loyalty ========== */
+
+.loyalty-card {
+  margin: 18px 0 8px;
+  padding: 20px;
+  border-radius: 24px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.75),
+    rgba(255, 235, 215, 0.6)
+  );
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.loyalty-card::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--tier-color, var(--accent));
+  opacity: 0.18;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.loyalty-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  position: relative;
+}
+
+.loyalty-tier {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--tier-color, var(--accent));
+  color: #1b1816;
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  box-shadow: 0 6px 16px rgba(36, 30, 24, 0.14);
+}
+
+.loyalty-balance {
+  font-family: var(--font-display), serif;
+  font-size: 1.8rem;
+  color: var(--ink);
+}
+
+.loyalty-progress {
+  height: 10px;
+  background: rgba(36, 30, 24, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.loyalty-progress-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--tier-color, var(--accent)),
+    var(--accent-strong)
+  );
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.loyalty-progress-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  position: relative;
+}
+
+.loyalty-rewards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  position: relative;
+}
+
+.loyalty-rewards-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.loyalty-rewards-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loyalty-reward-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.92rem;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.loyalty-reward-item.unlocked {
+  background: rgba(13, 118, 102, 0.12);
+  border-color: rgba(13, 118, 102, 0.35);
+  color: var(--ink);
+}
+
+.loyalty-reward-item.unlocked strong {
+  color: var(--teal);
+}
+
+.loyalty-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  position: relative;
+}
+
+.loyalty-cart-block {
+  margin: 14px 0 6px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loyalty-cart-block-guest {
+  background: rgba(212, 91, 31, 0.08);
+  border-color: rgba(212, 91, 31, 0.25);
+}
+
+.loyalty-cart-block-guest strong {
+  color: var(--accent-strong);
+}
+
+.loyalty-cart-block-guest p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.loyalty-cart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.loyalty-cart-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.loyalty-cart-balance {
+  font-family: var(--font-display), serif;
+  font-size: 1.4rem;
+  color: var(--accent-strong);
+}
+
+.loyalty-cart-earn {
+  margin: 0;
+  color: var(--teal);
+  font-size: 0.88rem;
+}
+
+.loyalty-reward-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.cart-reward-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--teal);
+  font-weight: 600;
+}
+
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.points-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(212, 91, 31, 0.14);
+  color: var(--accent-strong);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
 /* ========== Installer page ========== */
 
 .installer-shell {

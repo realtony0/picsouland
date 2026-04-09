@@ -179,6 +179,68 @@ const deliveryZones = [
 
 const OTHER_DELIVERY_AREA = "Autre zone (a confirmer)";
 
+const LOYALTY = {
+  POINTS_PER_100_CFA: 1,
+  WELCOME_BONUS: 20,
+  TIERS: [
+    { name: "Bronze", minEarned: 0, color: "#cd7f32" },
+    { name: "Argent", minEarned: 100, color: "#9aa4b2" },
+    { name: "Or", minEarned: 300, color: "#f2bb4d" },
+  ],
+  REWARDS: [
+    {
+      id: "discount-500",
+      cost: 50,
+      label: "500 F CFA offert",
+      discount: 500,
+    },
+    {
+      id: "discount-1500",
+      cost: 100,
+      label: "1 500 F CFA offert",
+      discount: 1500,
+    },
+    {
+      id: "free-coolbar",
+      cost: 200,
+      label: "Une puff Coolbar offerte",
+      discount: 7000,
+    },
+  ],
+};
+
+function getLoyaltyTier(totalEarned) {
+  let current = LOYALTY.TIERS[0];
+  for (const tier of LOYALTY.TIERS) {
+    if (totalEarned >= tier.minEarned) {
+      current = tier;
+    }
+  }
+  return current;
+}
+
+function getNextLoyaltyTier(totalEarned) {
+  for (const tier of LOYALTY.TIERS) {
+    if (totalEarned < tier.minEarned) {
+      return tier;
+    }
+  }
+  return null;
+}
+
+function pointsForOrder(cartTotal) {
+  return Math.floor(cartTotal / 100) * LOYALTY.POINTS_PER_100_CFA;
+}
+
+function normalizeLoyaltyAccount(account) {
+  return {
+    ...account,
+    points: typeof account.points === "number" ? account.points : 0,
+    totalEarned:
+      typeof account.totalEarned === "number" ? account.totalEarned : 0,
+  };
+}
+
 function getDeliveryPrice(area) {
   if (!area) {
     return 0;
@@ -239,13 +301,15 @@ function formatWhatsappNumber(value) {
   return digits;
 }
 
-function buildMessage(entries, customer, deliveryPrice) {
+function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
   if (!entries.length) {
     return "";
   }
 
+  const { reward, earnedPoints, currentAccount } = loyalty;
   const subtotal = entries.reduce((sum, item) => sum + item.subtotal, 0);
-  const total = subtotal + (deliveryPrice || 0);
+  const discount = reward ? reward.discount : 0;
+  const total = Math.max(0, subtotal + (deliveryPrice || 0) - discount);
   const lines = [
     "Bonjour, je souhaite commander :",
     "",
@@ -265,6 +329,12 @@ function buildMessage(entries, customer, deliveryPrice) {
     }
   }
 
+  if (reward) {
+    lines.push(
+      `Fidelite - ${reward.label} : -${formatPrice(reward.discount)} (${reward.cost} pts)`,
+    );
+  }
+
   lines.push(`Total : ${formatPrice(total)}`);
 
   if (customer.name.trim()) {
@@ -281,6 +351,10 @@ function buildMessage(entries, customer, deliveryPrice) {
     lines.push(`Telephone : ${customer.phone.trim()}`);
   }
 
+  if (currentAccount && earnedPoints > 0) {
+    lines.push("", `Picsou Points gagnes : +${earnedPoints}`);
+  }
+
   lines.push("", "Merci.");
   return lines.join("\n");
 }
@@ -294,7 +368,12 @@ function readStoredAccounts() {
     }
 
     const parsedAccounts = JSON.parse(rawAccounts);
-    return Array.isArray(parsedAccounts) ? parsedAccounts : [];
+
+    if (!Array.isArray(parsedAccounts)) {
+      return [];
+    }
+
+    return parsedAccounts.map(normalizeLoyaltyAccount);
   } catch {
     return [];
   }
@@ -329,6 +408,7 @@ export default function HomePage() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedRewardId, setSelectedRewardId] = useState("");
 
   useEffect(() => {
     const storedAccounts = readStoredAccounts();
@@ -438,8 +518,26 @@ export default function HomePage() {
   const cartTotal = cartEntries.reduce((sum, item) => sum + item.subtotal, 0);
   const cartCount = cartEntries.reduce((sum, item) => sum + item.quantity, 0);
   const deliveryPrice = getDeliveryPrice(customer.area);
-  const grandTotal = cartTotal + deliveryPrice;
-  const generatedMessage = buildMessage(cartEntries, customer, deliveryPrice);
+
+  const selectedReward = selectedRewardId
+    ? LOYALTY.REWARDS.find((reward) => reward.id === selectedRewardId)
+    : null;
+  const canUseReward = Boolean(
+    selectedReward &&
+      currentAccount &&
+      currentAccount.points >= selectedReward.cost,
+  );
+  const rewardDiscount = canUseReward ? selectedReward.discount : 0;
+  const earnedPoints = currentAccount ? pointsForOrder(cartTotal) : 0;
+  const grandTotal = Math.max(
+    0,
+    cartTotal + deliveryPrice - rewardDiscount,
+  );
+  const generatedMessage = buildMessage(cartEntries, customer, deliveryPrice, {
+    reward: canUseReward ? selectedReward : null,
+    earnedPoints,
+    currentAccount,
+  });
 
   function persistAccounts(nextAccounts) {
     setAccounts(nextAccounts);
@@ -534,6 +632,8 @@ export default function HomePage() {
       name: signupForm.name.trim(),
       phone: normalizedPhone,
       pin: signupForm.pin,
+      points: LOYALTY.WELCOME_BONUS,
+      totalEarned: LOYALTY.WELCOME_BONUS,
     };
 
     const nextAccounts = [...accounts, nextAccount];
@@ -550,7 +650,9 @@ export default function HomePage() {
       phone: "",
       pin: "",
     });
-    setAuthStatus("Compte cree et connecte sur cet appareil.");
+    setAuthStatus(
+      `Compte cree ! Tu recois ${LOYALTY.WELCOME_BONUS} Picsou Points de bienvenue.`,
+    );
   }
 
   function handleLogin(event) {
@@ -607,6 +709,20 @@ export default function HomePage() {
     if (!customer.area.trim()) {
       window.alert("Choisis ta zone de livraison avant de preparer la commande.");
       return;
+    }
+
+    if (currentAccount) {
+      const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
+      const updatedAccount = {
+        ...currentAccount,
+        points: Math.max(0, currentAccount.points + earnedPoints - usedPoints),
+        totalEarned: currentAccount.totalEarned + earnedPoints,
+      };
+      const updatedAccounts = accounts.map((account) =>
+        account.phone === currentAccount.phone ? updatedAccount : account,
+      );
+      persistAccounts(updatedAccounts);
+      setSelectedRewardId("");
     }
 
     try {
@@ -1161,6 +1277,54 @@ export default function HomePage() {
               ))}
             </div>
 
+            {currentAccount ? (
+              <div className="loyalty-cart-block">
+                <div className="loyalty-cart-head">
+                  <span className="loyalty-cart-label">Picsou Points</span>
+                  <strong className="loyalty-cart-balance">
+                    {currentAccount.points} pts
+                  </strong>
+                </div>
+                {cartEntries.length && earnedPoints > 0 ? (
+                  <p className="loyalty-cart-earn">
+                    Tu vas gagner <strong>+{earnedPoints} pts</strong> avec
+                    cette commande.
+                  </p>
+                ) : null}
+                <label className="loyalty-reward-label">
+                  Utiliser une recompense
+                  <select
+                    className="delivery-select"
+                    onChange={(event) => setSelectedRewardId(event.target.value)}
+                    value={selectedRewardId}
+                  >
+                    <option value="">Aucune recompense</option>
+                    {LOYALTY.REWARDS.map((reward) => {
+                      const unlocked = currentAccount.points >= reward.cost;
+                      return (
+                        <option
+                          disabled={!unlocked}
+                          key={reward.id}
+                          value={reward.id}
+                        >
+                          {reward.label} - {reward.cost} pts
+                          {unlocked ? "" : " (verrouille)"}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              </div>
+            ) : (
+              <div className="loyalty-cart-block loyalty-cart-block-guest">
+                <strong>Programme Picsou Fidelite</strong>
+                <p>
+                  Cree un compte pour gagner des points a chaque commande et
+                  debloquer des recompenses (jusqu&apos;a une puff offerte).
+                </p>
+              </div>
+            )}
+
             <div className="customer-fields">
               <label>
                 Nom
@@ -1224,6 +1388,12 @@ export default function HomePage() {
                   <span>a confirmer</span>
                 </div>
               ) : null}
+              {canUseReward && selectedReward ? (
+                <div className="cart-reward-row">
+                  <span>Fidelite - {selectedReward.label}</span>
+                  <span>-{formatPrice(selectedReward.discount)}</span>
+                </div>
+              ) : null}
               <div className="cart-total-row">
                 <span>Total</span>
                 <strong>{formatPrice(grandTotal)}</strong>
@@ -1268,10 +1438,72 @@ export default function HomePage() {
                   <span>{formatPhone(currentAccount.phone)}</span>
                 </div>
 
-                <p className="account-note">
-                  Ce compte rapide est memorise sur cet appareil pour accelerer les
-                  prochaines commandes.
-                </p>
+                {(() => {
+                  const tier = getLoyaltyTier(currentAccount.totalEarned);
+                  const nextTier = getNextLoyaltyTier(currentAccount.totalEarned);
+                  const progressMax = nextTier
+                    ? nextTier.minEarned
+                    : currentAccount.totalEarned || 1;
+                  const progressStart = tier.minEarned;
+                  const progressPct = nextTier
+                    ? Math.min(
+                        100,
+                        Math.round(
+                          ((currentAccount.totalEarned - progressStart) /
+                            (progressMax - progressStart)) *
+                            100,
+                        ),
+                      )
+                    : 100;
+
+                  return (
+                    <div
+                      className="loyalty-card"
+                      style={{ "--tier-color": tier.color }}
+                    >
+                      <div className="loyalty-head">
+                        <span className="loyalty-tier">Niveau {tier.name}</span>
+                        <strong className="loyalty-balance">
+                          {currentAccount.points} pts
+                        </strong>
+                      </div>
+                      <div className="loyalty-progress">
+                        <div
+                          className="loyalty-progress-fill"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                      <p className="loyalty-progress-hint">
+                        {nextTier
+                          ? `Plus que ${Math.max(0, nextTier.minEarned - currentAccount.totalEarned)} pts avant le niveau ${nextTier.name}`
+                          : "Tu es au niveau maximum !"}
+                      </p>
+
+                      <div className="loyalty-rewards">
+                        <span className="loyalty-rewards-title">Recompenses</span>
+                        <ul className="loyalty-rewards-list">
+                          {LOYALTY.REWARDS.map((reward) => {
+                            const unlocked = currentAccount.points >= reward.cost;
+                            return (
+                              <li
+                                className={`loyalty-reward-item ${unlocked ? "unlocked" : ""}`}
+                                key={reward.id}
+                              >
+                                <span>{reward.label}</span>
+                                <strong>{reward.cost} pts</strong>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+
+                      <p className="loyalty-help">
+                        Gagne 1 point par tranche de 100 F CFA depenses. Les
+                        recompenses s&apos;utilisent au panier.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 <div className="modal-actions">
                   <button

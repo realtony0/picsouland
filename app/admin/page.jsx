@@ -54,7 +54,17 @@ function readStoredAccounts() {
     }
 
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map((account) => ({
+      ...account,
+      points: typeof account.points === "number" ? account.points : 0,
+      totalEarned:
+        typeof account.totalEarned === "number" ? account.totalEarned : 0,
+    }));
   } catch {
     return [];
   }
@@ -149,6 +159,67 @@ export default function AdminPage() {
     setAccounts([]);
     setActiveSession("");
     setNotice("Tous les comptes ont ete supprimes.");
+  }
+
+  function adjustPoints(phone) {
+    const account = accounts.find((entry) => entry.phone === phone);
+
+    if (!account) {
+      return;
+    }
+
+    const current = typeof account.points === "number" ? account.points : 0;
+    const input = window.prompt(
+      `Picsou Points pour ${account.name}\nUtilise + ou - pour ajouter/retirer (ex : +50, -10) ou entre un nombre pour fixer le solde.`,
+      "+10",
+    );
+
+    if (input === null) {
+      return;
+    }
+
+    const trimmed = input.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    const isDelta = trimmed.startsWith("+") || trimmed.startsWith("-");
+    const parsed = Number(trimmed);
+
+    if (Number.isNaN(parsed)) {
+      window.alert("Valeur invalide.");
+      return;
+    }
+
+    let nextPoints;
+    let nextTotalEarned =
+      typeof account.totalEarned === "number" ? account.totalEarned : 0;
+
+    if (isDelta) {
+      nextPoints = Math.max(0, current + parsed);
+      if (parsed > 0) {
+        nextTotalEarned += parsed;
+      }
+    } else {
+      nextPoints = Math.max(0, parsed);
+      if (nextPoints > nextTotalEarned) {
+        nextTotalEarned = nextPoints;
+      }
+    }
+
+    const nextAccounts = accounts.map((entry) =>
+      entry.phone === phone
+        ? { ...entry, points: nextPoints, totalEarned: nextTotalEarned }
+        : entry,
+    );
+
+    window.localStorage.setItem(
+      STORAGE_KEYS.accounts,
+      JSON.stringify(nextAccounts),
+    );
+    setAccounts(nextAccounts);
+    setNotice(`${account.name} : solde mis a jour (${nextPoints} pts).`);
   }
 
   const productStats = useMemo(() => {
@@ -247,6 +318,27 @@ export default function AdminPage() {
           <span className="stat-hint">memorises sur cet appareil</span>
         </article>
         <article className="stat-card">
+          <span className="stat-label">Picsou Points en circulation</span>
+          <strong className="stat-value">
+            {accounts.reduce(
+              (sum, account) =>
+                sum + (typeof account.points === "number" ? account.points : 0),
+              0,
+            )}
+          </strong>
+          <span className="stat-hint">
+            {accounts.reduce(
+              (sum, account) =>
+                sum +
+                (typeof account.totalEarned === "number"
+                  ? account.totalEarned
+                  : 0),
+              0,
+            )}{" "}
+            cumules depuis l&apos;ouverture
+          </span>
+        </article>
+        <article className="stat-card">
           <span className="stat-label">Produits au catalogue</span>
           <strong className="stat-value">{products.length}</strong>
           <span className="stat-hint">{Object.keys(productStats).length} marques</span>
@@ -291,6 +383,7 @@ export default function AdminPage() {
                 <tr>
                   <th>Nom</th>
                   <th>Telephone</th>
+                  <th>Points</th>
                   <th>Statut</th>
                   <th>Actions</th>
                 </tr>
@@ -300,6 +393,11 @@ export default function AdminPage() {
                   <tr key={account.phone}>
                     <td data-label="Nom">{account.name}</td>
                     <td data-label="Telephone">{formatPhone(account.phone)}</td>
+                    <td data-label="Points">
+                      <span className="points-chip">
+                        {typeof account.points === "number" ? account.points : 0} pts
+                      </span>
+                    </td>
                     <td data-label="Statut">
                       {activeSession === account.phone ? (
                         <span className="status-chip status-active">Connecte</span>
@@ -308,13 +406,22 @@ export default function AdminPage() {
                       )}
                     </td>
                     <td data-label="Actions">
-                      <button
-                        className="button danger small"
-                        onClick={() => deleteAccount(account.phone)}
-                        type="button"
-                      >
-                        Supprimer
-                      </button>
+                      <div className="admin-row-actions">
+                        <button
+                          className="button secondary small"
+                          onClick={() => adjustPoints(account.phone)}
+                          type="button"
+                        >
+                          Points
+                        </button>
+                        <button
+                          className="button danger small"
+                          onClick={() => deleteAccount(account.phone)}
+                          type="button"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
