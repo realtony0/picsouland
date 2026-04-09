@@ -180,31 +180,33 @@ const deliveryZones = [
 const OTHER_DELIVERY_AREA = "Autre zone (a confirmer)";
 
 const LOYALTY = {
-  POINTS_PER_100_CFA: 1,
-  WELCOME_BONUS: 20,
+  POINTS_PER_ORDER: 10,
+  WELCOME_BONUS: 10,
   TIERS: [
     { name: "Bronze", minEarned: 0, color: "#cd7f32" },
-    { name: "Argent", minEarned: 100, color: "#9aa4b2" },
-    { name: "Or", minEarned: 300, color: "#f2bb4d" },
+    { name: "Argent", minEarned: 30, color: "#9aa4b2" },
+    { name: "Or", minEarned: 100, color: "#f2bb4d" },
   ],
   REWARDS: [
     {
-      id: "discount-500",
-      cost: 50,
-      label: "500 F CFA offert",
-      discount: 500,
+      id: "free-delivery",
+      cost: 30,
+      label: "Livraison offerte",
+      type: "delivery",
     },
     {
       id: "discount-1500",
-      cost: 100,
+      cost: 60,
       label: "1 500 F CFA offert",
-      discount: 1500,
+      type: "flat",
+      value: 1500,
     },
     {
-      id: "free-coolbar",
-      cost: 200,
-      label: "Une puff Coolbar offerte",
-      discount: 7000,
+      id: "half-off",
+      cost: 100,
+      label: "-50% sur la commande",
+      type: "percent",
+      value: 0.5,
     },
   ],
 };
@@ -228,8 +230,28 @@ function getNextLoyaltyTier(totalEarned) {
   return null;
 }
 
-function pointsForOrder(cartTotal) {
-  return Math.floor(cartTotal / 100) * LOYALTY.POINTS_PER_100_CFA;
+function pointsForOrder() {
+  return LOYALTY.POINTS_PER_ORDER;
+}
+
+function computeRewardDiscount(reward, cartTotal, deliveryPrice) {
+  if (!reward) {
+    return 0;
+  }
+
+  if (reward.type === "delivery") {
+    return deliveryPrice || 0;
+  }
+
+  if (reward.type === "flat") {
+    return reward.value;
+  }
+
+  if (reward.type === "percent") {
+    return Math.round(cartTotal * reward.value);
+  }
+
+  return 0;
 }
 
 function normalizeLoyaltyAccount(account) {
@@ -306,9 +328,9 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
     return "";
   }
 
-  const { reward, earnedPoints, currentAccount } = loyalty;
+  const { reward, rewardDiscount, earnedPoints, currentAccount } = loyalty;
   const subtotal = entries.reduce((sum, item) => sum + item.subtotal, 0);
-  const discount = reward ? reward.discount : 0;
+  const discount = rewardDiscount || 0;
   const total = Math.max(0, subtotal + (deliveryPrice || 0) - discount);
   const lines = [
     "Bonjour, je souhaite commander :",
@@ -329,9 +351,9 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
     }
   }
 
-  if (reward) {
+  if (reward && discount > 0) {
     lines.push(
-      `Fidelite - ${reward.label} : -${formatPrice(reward.discount)} (${reward.cost} pts)`,
+      `Fidelite - ${reward.label} : -${formatPrice(discount)} (${reward.cost} pts)`,
     );
   }
 
@@ -527,14 +549,17 @@ export default function HomePage() {
       currentAccount &&
       currentAccount.points >= selectedReward.cost,
   );
-  const rewardDiscount = canUseReward ? selectedReward.discount : 0;
-  const earnedPoints = currentAccount ? pointsForOrder(cartTotal) : 0;
+  const rewardDiscount = canUseReward
+    ? computeRewardDiscount(selectedReward, cartTotal, deliveryPrice)
+    : 0;
+  const earnedPoints = currentAccount && cartEntries.length ? pointsForOrder() : 0;
   const grandTotal = Math.max(
     0,
     cartTotal + deliveryPrice - rewardDiscount,
   );
   const generatedMessage = buildMessage(cartEntries, customer, deliveryPrice, {
     reward: canUseReward ? selectedReward : null,
+    rewardDiscount,
     earnedPoints,
     currentAccount,
   });
@@ -1388,10 +1413,10 @@ export default function HomePage() {
                   <span>a confirmer</span>
                 </div>
               ) : null}
-              {canUseReward && selectedReward ? (
+              {canUseReward && selectedReward && rewardDiscount > 0 ? (
                 <div className="cart-reward-row">
                   <span>Fidelite - {selectedReward.label}</span>
-                  <span>-{formatPrice(selectedReward.discount)}</span>
+                  <span>-{formatPrice(rewardDiscount)}</span>
                 </div>
               ) : null}
               <div className="cart-total-row">
