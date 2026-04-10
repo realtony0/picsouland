@@ -5,25 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
 const ADMIN_SESSION_KEY = "picsouland_admin_session";
 
-const products = [
-  { id: "rodman-allstar", name: "All Star", brand: "Rodman", price: 8000 },
-  { id: "rodman-buzzerbeater", name: "Buzzer Beater", brand: "Rodman", price: 8000 },
-  { id: "rodman-coolmint", name: "Cool Mint", brand: "Rodman", price: 8000 },
-  { id: "rodman-peach-berry", name: "Peach Berry", brand: "Rodman", price: 8000 },
-  { id: "rodman-pineapple-banana-ice", name: "Pineapple Banana Ice", brand: "Rodman", price: 8000 },
-  { id: "rodman-red-bull", name: "Red Bull", brand: "Rodman", price: 8000 },
-  { id: "coolbar-cola-ice", name: "Cola Ice", brand: "Coolbar", price: 7000 },
-  { id: "coolbar-mix-berry", name: "Mix Berry", brand: "Coolbar", price: 7000 },
-  { id: "coolbar-peach-ice", name: "Peach Ice", brand: "Coolbar", price: 7000 },
-  { id: "coolbar-watermelon", name: "Watermelon", brand: "Coolbar", price: 7000 },
-  { id: "hyperjoy-blue-razz", name: "Blue Razz", brand: "Hyperjoy", price: 8000 },
-  { id: "hyperjoy-kiwi-passion-fruit-guava", name: "Kiwi Passion Fruit Guava", brand: "Hyperjoy", price: 8000 },
-  { id: "hyperjoy-triple-berry", name: "Triple Berry", brand: "Hyperjoy", price: 8000 },
-  { id: "hyperjoy-vimto", name: "Vimto", brand: "Hyperjoy", price: 8000 },
-  { id: "hyperjoy-watermelon-bubble-gum", name: "Watermelon Bubble Gum", brand: "Hyperjoy", price: 8000 },
-  { id: "hyperjoy-watermelon-ice", name: "Watermelon Ice", brand: "Hyperjoy", price: 8000 },
-];
-
 const formatter = new Intl.NumberFormat("fr-FR");
 
 function formatPrice(value) {
@@ -47,9 +28,16 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [accounts, setAccounts] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
   const [notice, setNotice] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    brand: "Rodman",
+    price: "",
+    image: "",
+  });
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -77,9 +65,10 @@ export default function AdminPage() {
 
   async function refreshData() {
     try {
-      const [accRes, ordRes] = await Promise.all([
+      const [accRes, ordRes, prodRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
         fetch("/api/admin/orders", { headers: apiHeaders() }),
+        fetch("/api/products"),
       ]);
 
       if (accRes.ok) {
@@ -95,6 +84,10 @@ export default function AdminPage() {
 
       if (ordRes.ok) {
         setOrders(await ordRes.json());
+      }
+
+      if (prodRes.ok) {
+        setProducts(await prodRes.json());
       }
     } catch {
       setNotice("Erreur de chargement des donnees.");
@@ -207,6 +200,65 @@ export default function AdminPage() {
     }
   }
 
+  async function addProduct(event) {
+    event.preventDefault();
+
+    if (!newProduct.name.trim() || !newProduct.brand.trim() || !newProduct.price) {
+      setNotice("Nom, marque et prix requis pour ajouter un produit.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          name: newProduct.name.trim(),
+          brand: newProduct.brand.trim(),
+          price: Number(newProduct.price),
+          image: newProduct.image.trim() || "",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setNotice(data.error || "Erreur lors de l'ajout.");
+        return;
+      }
+
+      setProducts((prev) => [...prev, data]);
+      setNewProduct({ name: "", brand: newProduct.brand, price: "", image: "" });
+      setNotice(`Produit "${data.name}" ajoute.`);
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function deleteProduct(id) {
+    const product = products.find((p) => p.id === id);
+    const confirmed = window.confirm(
+      `Supprimer le produit "${product?.name || id}" ? Cette action est irreversible.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await fetch("/api/admin/products", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id }),
+      });
+
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      setNotice(`Produit "${product?.name || id}" supprime.`);
+    } catch {
+      setNotice("Erreur lors de la suppression.");
+    }
+  }
+
   const productStats = useMemo(() => {
     const stats = {};
 
@@ -221,7 +273,7 @@ export default function AdminPage() {
     }
 
     return stats;
-  }, []);
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -235,7 +287,7 @@ export default function AdminPage() {
 
       return matchBrand && matchSearch;
     });
-  }, [brandFilter, search]);
+  }, [products, brandFilter, search]);
 
   if (!isAuthed) {
     return (
@@ -413,11 +465,57 @@ export default function AdminPage() {
           <div>
             <h2>Catalogue produits</h2>
             <p className="admin-section-copy">
-              Vue d&apos;ensemble du catalogue. Les prix et produits sont definis dans
-              le code source (app/page.jsx).
+              Ajoute ou supprime des produits. Les changements sont visibles
+              immediatement sur la boutique.
             </p>
           </div>
         </div>
+
+        <form className="admin-add-form" onSubmit={addProduct}>
+          <strong>Ajouter un produit</strong>
+          <div className="admin-add-fields">
+            <input
+              onChange={(e) =>
+                setNewProduct((p) => ({ ...p, name: e.target.value }))
+              }
+              placeholder="Nom (ex : Grape Ice)"
+              required
+              type="text"
+              value={newProduct.name}
+            />
+            <select
+              onChange={(e) =>
+                setNewProduct((p) => ({ ...p, brand: e.target.value }))
+              }
+              value={newProduct.brand}
+            >
+              <option value="Rodman">Rodman</option>
+              <option value="Coolbar">Coolbar</option>
+              <option value="Hyperjoy">Hyperjoy</option>
+            </select>
+            <input
+              min="1"
+              onChange={(e) =>
+                setNewProduct((p) => ({ ...p, price: e.target.value }))
+              }
+              placeholder="Prix (ex : 8000)"
+              required
+              type="number"
+              value={newProduct.price}
+            />
+            <input
+              onChange={(e) =>
+                setNewProduct((p) => ({ ...p, image: e.target.value }))
+              }
+              placeholder="Image (ex : /images/nom.jpg)"
+              type="text"
+              value={newProduct.image}
+            />
+            <button className="button primary" type="submit">
+              Ajouter
+            </button>
+          </div>
+        </form>
 
         <div className="admin-brand-stats">
           {Object.entries(productStats).map(([brand, info]) => (
@@ -435,16 +533,18 @@ export default function AdminPage() {
 
         <div className="admin-filters">
           <div className="admin-filter-buttons">
-            {["all", "Rodman", "Coolbar", "Hyperjoy"].map((brand) => (
-              <button
-                className={`filter-button ${brandFilter === brand ? "active" : ""}`}
-                key={brand}
-                onClick={() => setBrandFilter(brand)}
-                type="button"
-              >
-                {brand === "all" ? "Tout voir" : brand}
-              </button>
-            ))}
+            {["all", ...Array.from(new Set(products.map((p) => p.brand)))].map(
+              (brand) => (
+                <button
+                  className={`filter-button ${brandFilter === brand ? "active" : ""}`}
+                  key={brand}
+                  onClick={() => setBrandFilter(brand)}
+                  type="button"
+                >
+                  {brand === "all" ? "Tout voir" : brand}
+                </button>
+              ),
+            )}
           </div>
           <input
             className="admin-search"
@@ -462,7 +562,7 @@ export default function AdminPage() {
                 <th>Produit</th>
                 <th>Marque</th>
                 <th>Prix</th>
-                <th>Identifiant</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -475,8 +575,14 @@ export default function AdminPage() {
                     </span>
                   </td>
                   <td data-label="Prix">{formatPrice(product.price)}</td>
-                  <td data-label="Identifiant">
-                    <code>{product.id}</code>
+                  <td data-label="Actions">
+                    <button
+                      className="button danger small"
+                      onClick={() => deleteProduct(product.id)}
+                      type="button"
+                    >
+                      Supprimer
+                    </button>
                   </td>
                 </tr>
               ))}

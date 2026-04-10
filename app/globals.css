@@ -2369,6 +2369,48 @@ img {
   outline-offset: 2px;
 }
 
+.admin-add-form {
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-add-form strong {
+  font-size: 0.95rem;
+}
+
+.admin-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.admin-add-fields input,
+.admin-add-fields select {
+  flex: 1 1 160px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  font: inherit;
+}
+
+.admin-add-fields input:focus,
+.admin-add-fields select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.admin-add-fields .button {
+  flex: 0 0 auto;
+}
+
 .admin-footer {
   color: var(--muted);
   font-size: 0.85rem;

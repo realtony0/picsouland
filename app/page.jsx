@@ -12,121 +12,6 @@ const STORAGE_KEYS = {
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
 
-const products = [
-  {
-    id: "rodman-allstar",
-    name: "All Star",
-    brand: "Rodman",
-    price: 8000,
-    image: "/images/rodman-allstar.jpeg",
-  },
-  {
-    id: "rodman-buzzerbeater",
-    name: "Buzzer Beater",
-    brand: "Rodman",
-    price: 8000,
-    image: "/images/rodman-buzzerbeater.webp",
-  },
-  {
-    id: "rodman-coolmint",
-    name: "Cool Mint",
-    brand: "Rodman",
-    price: 8000,
-    image: "/images/rodman-coolmint.webp",
-  },
-  {
-    id: "rodman-peach-berry",
-    name: "Peach Berry",
-    brand: "Rodman",
-    price: 8000,
-    image: "/images/rodman-peach-berry.webp",
-  },
-  {
-    id: "rodman-pineapple-banana-ice",
-    name: "Pineapple Banana Ice",
-    brand: "Rodman",
-    price: 8000,
-    image: "/images/rodman-pineapple-banana-ice.webp",
-  },
-  {
-    id: "rodman-red-bull",
-    name: "Red Bull",
-    brand: "Rodman",
-    price: 8000,
-    image: "/images/rodman-red-bull.webp",
-  },
-  {
-    id: "coolbar-cola-ice",
-    name: "Cola Ice",
-    brand: "Coolbar",
-    price: 7000,
-    image: "/images/coolbar-cola-ice.jpeg",
-  },
-  {
-    id: "coolbar-mix-berry",
-    name: "Mix Berry",
-    brand: "Coolbar",
-    price: 7000,
-    image: "/images/coolbar-mix-berry.png",
-  },
-  {
-    id: "coolbar-peach-ice",
-    name: "Peach Ice",
-    brand: "Coolbar",
-    price: 7000,
-    image: "/images/coolbar-peach-ice.png",
-  },
-  {
-    id: "coolbar-watermelon",
-    name: "Watermelon",
-    brand: "Coolbar",
-    price: 7000,
-    image: "/images/coolbar-watermelon.png",
-  },
-  {
-    id: "hyperjoy-blue-razz",
-    name: "Blue Razz",
-    brand: "Hyperjoy",
-    price: 8000,
-    image: "/images/hyperjoy-blue-razz.jpg",
-  },
-  {
-    id: "hyperjoy-kiwi-passion-fruit-guava",
-    name: "Kiwi Passion Fruit Guava",
-    brand: "Hyperjoy",
-    price: 8000,
-    image: "/images/hyperjoy-kiwi-passion-fruit-guava.jpg",
-  },
-  {
-    id: "hyperjoy-triple-berry",
-    name: "Triple Berry",
-    brand: "Hyperjoy",
-    price: 8000,
-    image: "/images/hyperjoy-triple-berry.jpg",
-  },
-  {
-    id: "hyperjoy-vimto",
-    name: "Vimto",
-    brand: "Hyperjoy",
-    price: 8000,
-    image: "/images/hyperjoy-vimto.jpg",
-  },
-  {
-    id: "hyperjoy-watermelon-bubble-gum",
-    name: "Watermelon Bubble Gum",
-    brand: "Hyperjoy",
-    price: 8000,
-    image: "/images/hyperjoy-watermelon-bubble-gum.jpg",
-  },
-  {
-    id: "hyperjoy-watermelon-ice",
-    name: "Watermelon Ice",
-    brand: "Hyperjoy",
-    price: 8000,
-    image: "/images/hyperjoy-watermelon-ice.jpg",
-  },
-];
-
 const heroProducts = [
   {
     brand: "Rodman",
@@ -385,6 +270,7 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
 }
 
 export default function HomePage() {
+  const [products, setProducts] = useState([]);
   const [ageGateStatus, setAgeGateStatus] = useState("pending");
   const [filter, setFilter] = useState("all");
   const [cart, setCart] = useState({});
@@ -416,6 +302,11 @@ export default function HomePage() {
   const [selectedRewardId, setSelectedRewardId] = useState("");
 
   useEffect(() => {
+    fetch("/api/products")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setProducts(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
     setAgeGateStatus(ageGateValue === "yes" ? "granted" : "pending");
 
@@ -1142,7 +1033,7 @@ export default function HomePage() {
           </div>
 
           <div aria-label="Filtres de produits" className="filters" role="tablist">
-            {["all", "Rodman", "Coolbar", "Hyperjoy"].map((brand) => (
+            {["all", ...Array.from(new Set(products.map((p) => p.brand)))].map((brand) => (
               <button
                 className={`filter-button ${filter === brand ? "active" : ""}`}
                 key={brand}

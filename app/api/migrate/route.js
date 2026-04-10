@@ -42,6 +42,40 @@ export async function POST(request) {
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_account_phone ON orders(account_phone)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`;
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS products (
+        id         TEXT PRIMARY KEY,
+        name       TEXT NOT NULL,
+        brand      TEXT NOT NULL,
+        price      INTEGER NOT NULL,
+        image      TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand)`;
+
+    await sql`
+      INSERT INTO products (id, name, brand, price, image) VALUES
+        ('rodman-allstar', 'All Star', 'Rodman', 8000, '/images/rodman-allstar.jpeg'),
+        ('rodman-buzzerbeater', 'Buzzer Beater', 'Rodman', 8000, '/images/rodman-buzzerbeater.webp'),
+        ('rodman-coolmint', 'Cool Mint', 'Rodman', 8000, '/images/rodman-coolmint.webp'),
+        ('rodman-peach-berry', 'Peach Berry', 'Rodman', 8000, '/images/rodman-peach-berry.webp'),
+        ('rodman-pineapple-banana-ice', 'Pineapple Banana Ice', 'Rodman', 8000, '/images/rodman-pineapple-banana-ice.webp'),
+        ('rodman-red-bull', 'Red Bull', 'Rodman', 8000, '/images/rodman-red-bull.webp'),
+        ('coolbar-cola-ice', 'Cola Ice', 'Coolbar', 7000, '/images/coolbar-cola-ice.jpeg'),
+        ('coolbar-mix-berry', 'Mix Berry', 'Coolbar', 7000, '/images/coolbar-mix-berry.png'),
+        ('coolbar-peach-ice', 'Peach Ice', 'Coolbar', 7000, '/images/coolbar-peach-ice.png'),
+        ('coolbar-watermelon', 'Watermelon', 'Coolbar', 7000, '/images/coolbar-watermelon.png'),
+        ('hyperjoy-blue-razz', 'Blue Razz', 'Hyperjoy', 8000, '/images/hyperjoy-blue-razz.jpg'),
+        ('hyperjoy-kiwi-passion-fruit-guava', 'Kiwi Passion Fruit Guava', 'Hyperjoy', 8000, '/images/hyperjoy-kiwi-passion-fruit-guava.jpg'),
+        ('hyperjoy-triple-berry', 'Triple Berry', 'Hyperjoy', 8000, '/images/hyperjoy-triple-berry.jpg'),
+        ('hyperjoy-vimto', 'Vimto', 'Hyperjoy', 8000, '/images/hyperjoy-vimto.jpg'),
+        ('hyperjoy-watermelon-bubble-gum', 'Watermelon Bubble Gum', 'Hyperjoy', 8000, '/images/hyperjoy-watermelon-bubble-gum.jpg'),
+        ('hyperjoy-watermelon-ice', 'Watermelon Ice', 'Hyperjoy', 8000, '/images/hyperjoy-watermelon-ice.jpg')
+      ON CONFLICT (id) DO NOTHING
+    `;
+
     return Response.json({ ok: true, message: "Migration terminee." });
   } catch (error) {
     return Response.json(
