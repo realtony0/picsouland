@@ -633,6 +633,12 @@ export default function HomePage() {
   }
 
   async function prepareOrder() {
+    if (!currentAccount) {
+      window.alert("Connecte-toi ou cree un compte avant de commander.");
+      openAccountPanel("signup");
+      return;
+    }
+
     if (!generatedMessage) {
       window.alert("Ajoute au moins un produit avant de preparer la commande.");
       return;
@@ -1362,9 +1368,22 @@ export default function HomePage() {
             </div>
 
             <div className="cart-actions">
-              <button className="button primary full" onClick={prepareOrder} type="button">
-                Preparer ma commande
-              </button>
+              {currentAccount ? (
+                <button className="button primary full" onClick={prepareOrder} type="button">
+                  Preparer ma commande
+                </button>
+              ) : (
+                <button
+                  className="button primary full"
+                  onClick={() => {
+                    closeCartPanel();
+                    openAccountPanel("signup");
+                  }}
+                  type="button"
+                >
+                  Creer un compte pour commander
+                </button>
+              )}
               <button className="button secondary full" onClick={clearCart} type="button">
                 Vider le panier
               </button>
