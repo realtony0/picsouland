@@ -36,8 +36,9 @@ export default function AdminPage() {
     name: "",
     brand: "Rodman",
     price: "",
-    image: "",
+    imageFile: null,
   });
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -200,6 +201,24 @@ export default function AdminPage() {
     }
   }
 
+  async function uploadImage(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "x-admin-pin": adminPin },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error("Upload echoue");
+    }
+
+    const data = await res.json();
+    return data.url;
+  }
+
   async function addProduct(event) {
     event.preventDefault();
 
@@ -208,7 +227,17 @@ export default function AdminPage() {
       return;
     }
 
+    if (!newProduct.imageFile) {
+      setNotice("Ajoute une photo du produit.");
+      return;
+    }
+
+    setUploading(true);
+    setNotice("Upload de la photo...");
+
     try {
+      const imageUrl = await uploadImage(newProduct.imageFile);
+
       const res = await fetch("/api/admin/products", {
         method: "POST",
         headers: apiHeaders(),
@@ -216,7 +245,7 @@ export default function AdminPage() {
           name: newProduct.name.trim(),
           brand: newProduct.brand.trim(),
           price: Number(newProduct.price),
-          image: newProduct.image.trim() || "",
+          image: imageUrl,
         }),
       });
 
@@ -228,10 +257,12 @@ export default function AdminPage() {
       }
 
       setProducts((prev) => [...prev, data]);
-      setNewProduct({ name: "", brand: newProduct.brand, price: "", image: "" });
+      setNewProduct({ name: "", brand: newProduct.brand, price: "", imageFile: null });
       setNotice(`Produit "${data.name}" ajoute.`);
     } catch {
-      setNotice("Erreur reseau.");
+      setNotice("Erreur reseau ou upload echoue.");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -274,7 +305,15 @@ export default function AdminPage() {
       return;
     }
 
+    setUploading(true);
+
     try {
+      let imageUrl = editingProduct.image;
+
+      if (editingProduct.newImageFile) {
+        imageUrl = await uploadImage(editingProduct.newImageFile);
+      }
+
       const res = await fetch("/api/admin/products", {
         method: "PATCH",
         headers: apiHeaders(),
@@ -283,7 +322,7 @@ export default function AdminPage() {
           name: editingProduct.name,
           brand: editingProduct.brand,
           price: Number(editingProduct.price),
-          image: editingProduct.image,
+          image: imageUrl,
         }),
       });
 
@@ -301,6 +340,8 @@ export default function AdminPage() {
       setNotice(`Produit "${data.name}" modifie.`);
     } catch {
       setNotice("Erreur reseau.");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -591,16 +632,27 @@ export default function AdminPage() {
               type="number"
               value={newProduct.price}
             />
-            <input
-              onChange={(e) =>
-                setNewProduct((p) => ({ ...p, image: e.target.value }))
-              }
-              placeholder="Image (ex : /images/nom.jpg)"
-              type="text"
-              value={newProduct.image}
-            />
-            <button className="button primary" type="submit">
-              Ajouter
+            <label className="file-upload-label">
+              {newProduct.imageFile
+                ? newProduct.imageFile.name
+                : "Photo du produit"}
+              <input
+                accept="image/*"
+                onChange={(e) =>
+                  setNewProduct((p) => ({
+                    ...p,
+                    imageFile: e.target.files[0] || null,
+                  }))
+                }
+                type="file"
+              />
+            </label>
+            <button
+              className="button primary"
+              disabled={uploading}
+              type="submit"
+            >
+              {uploading ? "Upload..." : "Ajouter"}
             </button>
           </div>
         </form>
@@ -691,13 +743,29 @@ export default function AdminPage() {
                       />
                     </td>
                     <td data-label="Actions">
+                      <label className="file-upload-label small">
+                        {editingProduct.newImageFile
+                          ? editingProduct.newImageFile.name
+                          : "Changer photo"}
+                        <input
+                          accept="image/*"
+                          onChange={(e) =>
+                            setEditingProduct((p) => ({
+                              ...p,
+                              newImageFile: e.target.files[0] || null,
+                            }))
+                          }
+                          type="file"
+                        />
+                      </label>
                       <div className="admin-row-actions">
                         <button
                           className="button primary small"
+                          disabled={uploading}
                           onClick={saveEditProduct}
                           type="button"
                         >
-                          OK
+                          {uploading ? "..." : "OK"}
                         </button>
                         <button
                           className="button secondary small"

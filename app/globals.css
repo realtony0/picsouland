@@ -2452,6 +2452,43 @@ img {
   flex: 0 0 auto;
 }
 
+.admin-add-fields .button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.file-upload-label {
+  flex: 1 1 160px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed var(--accent);
+  background: rgba(212, 91, 31, 0.06);
+  color: var(--accent-strong);
+  font-weight: 500;
+  font-size: 0.92rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-upload-label:hover {
+  background: rgba(212, 91, 31, 0.12);
+}
+
+.file-upload-label input[type="file"] {
+  display: none;
+}
+
+.file-upload-label.small {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  margin-bottom: 6px;
+}
+
 .admin-footer {
   color: var(--muted);
   font-size: 0.85rem;
