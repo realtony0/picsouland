@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
+const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 const ADMIN_SESSION_KEY = "picsouland_admin_session";
 
 const formatter = new Intl.NumberFormat("fr-FR");
@@ -256,6 +256,51 @@ export default function AdminPage() {
       setNotice(`Produit "${product?.name || id}" supprime.`);
     } catch {
       setNotice("Erreur lors de la suppression.");
+    }
+  }
+
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  function startEditProduct(product) {
+    setEditingProduct({ ...product });
+  }
+
+  function cancelEditProduct() {
+    setEditingProduct(null);
+  }
+
+  async function saveEditProduct() {
+    if (!editingProduct) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/products", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          id: editingProduct.id,
+          name: editingProduct.name,
+          brand: editingProduct.brand,
+          price: Number(editingProduct.price),
+          image: editingProduct.image,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setNotice(data.error || "Erreur lors de la modification.");
+        return;
+      }
+
+      setProducts((prev) =>
+        prev.map((p) => (p.id === data.id ? data : p)),
+      );
+      setEditingProduct(null);
+      setNotice(`Produit "${data.name}" modifie.`);
+    } catch {
+      setNotice("Erreur reseau.");
     }
   }
 
@@ -609,26 +654,91 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((product) => (
-                <tr key={product.id}>
-                  <td data-label="Produit">{product.name}</td>
-                  <td data-label="Marque">
-                    <span className="brand-pill" data-brand={product.brand}>
-                      {product.brand}
-                    </span>
-                  </td>
-                  <td data-label="Prix">{formatPrice(product.price)}</td>
-                  <td data-label="Actions">
-                    <button
-                      className="button danger small"
-                      onClick={() => deleteProduct(product.id)}
-                      type="button"
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredProducts.map((product) =>
+                editingProduct && editingProduct.id === product.id ? (
+                  <tr className="editing-row" key={product.id}>
+                    <td data-label="Produit">
+                      <input
+                        className="edit-input"
+                        onChange={(e) =>
+                          setEditingProduct((p) => ({ ...p, name: e.target.value }))
+                        }
+                        value={editingProduct.name}
+                      />
+                    </td>
+                    <td data-label="Marque">
+                      <select
+                        className="edit-input"
+                        onChange={(e) =>
+                          setEditingProduct((p) => ({ ...p, brand: e.target.value }))
+                        }
+                        value={editingProduct.brand}
+                      >
+                        <option value="Rodman">Rodman</option>
+                        <option value="Coolbar">Coolbar</option>
+                        <option value="Hyperjoy">Hyperjoy</option>
+                      </select>
+                    </td>
+                    <td data-label="Prix">
+                      <input
+                        className="edit-input"
+                        min="1"
+                        onChange={(e) =>
+                          setEditingProduct((p) => ({ ...p, price: e.target.value }))
+                        }
+                        type="number"
+                        value={editingProduct.price}
+                      />
+                    </td>
+                    <td data-label="Actions">
+                      <div className="admin-row-actions">
+                        <button
+                          className="button primary small"
+                          onClick={saveEditProduct}
+                          type="button"
+                        >
+                          OK
+                        </button>
+                        <button
+                          className="button secondary small"
+                          onClick={cancelEditProduct}
+                          type="button"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={product.id}>
+                    <td data-label="Produit">{product.name}</td>
+                    <td data-label="Marque">
+                      <span className="brand-pill" data-brand={product.brand}>
+                        {product.brand}
+                      </span>
+                    </td>
+                    <td data-label="Prix">{formatPrice(product.price)}</td>
+                    <td data-label="Actions">
+                      <div className="admin-row-actions">
+                        <button
+                          className="button secondary small"
+                          onClick={() => startEditProduct(product)}
+                          type="button"
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          className="button danger small"
+                          onClick={() => deleteProduct(product.id)}
+                          type="button"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              )}
               {!filteredProducts.length ? (
                 <tr>
                   <td colSpan={4}>

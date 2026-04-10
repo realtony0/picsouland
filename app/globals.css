@@ -2390,6 +2390,26 @@ img {
   background: rgba(212, 91, 31, 0.04);
 }
 
+.editing-row {
+  background: rgba(212, 91, 31, 0.06);
+}
+
+.edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.edit-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .admin-add-form {
   padding: 18px;
   border-radius: 18px;

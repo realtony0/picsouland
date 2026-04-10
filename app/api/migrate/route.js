@@ -1,6 +1,6 @@
 import sql from "@/lib/db";
 
-const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
+const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 
 export async function POST(request) {
   try {

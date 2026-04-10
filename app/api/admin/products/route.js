@@ -1,6 +1,6 @@
 import sql from "@/lib/db";
 
-const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
+const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 
 function checkAdmin(request) {
   return request.headers.get("x-admin-pin") === ADMIN_PIN;
@@ -37,6 +37,71 @@ export async function POST(request) {
       VALUES (${id}, ${name}, ${brand}, ${price}, ${image || ""})
       RETURNING id, name, brand, price, image
     `;
+
+    return Response.json(rows[0]);
+  } catch (error) {
+    return Response.json(
+      { error: "Erreur serveur", detail: error.message },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request) {
+  if (!checkAdmin(request)) {
+    return Response.json({ error: "Non autorise" }, { status: 401 });
+  }
+
+  try {
+    const { id, name, brand, price, image } = await request.json();
+
+    if (!id) {
+      return Response.json(
+        { error: "Identifiant produit requis." },
+        { status: 400 },
+      );
+    }
+
+    const fields = [];
+    const values = {};
+
+    if (name !== undefined) {
+      values.name = name;
+    }
+    if (brand !== undefined) {
+      values.brand = brand;
+    }
+    if (price !== undefined) {
+      values.price = price;
+    }
+    if (image !== undefined) {
+      values.image = image;
+    }
+
+    if (!Object.keys(values).length) {
+      return Response.json(
+        { error: "Aucun champ a modifier." },
+        { status: 400 },
+      );
+    }
+
+    const rows = await sql`
+      UPDATE products
+      SET
+        name = COALESCE(${values.name ?? null}, name),
+        brand = COALESCE(${values.brand ?? null}, brand),
+        price = COALESCE(${values.price ?? null}, price),
+        image = COALESCE(${values.image ?? null}, image)
+      WHERE id = ${id}
+      RETURNING id, name, brand, price, image
+    `;
+
+    if (rows.length === 0) {
+      return Response.json(
+        { error: "Produit introuvable." },
+        { status: 404 },
+      );
+    }
 
     return Response.json(rows[0]);
   } catch (error) {
