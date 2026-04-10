@@ -2,13 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEYS = {
-  accounts: "picsouland_accounts",
-  session: "picsouland_session_phone",
-  adminSession: "picsouland_admin_session",
-};
-
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
+const ADMIN_SESSION_KEY = "picsouland_admin_session";
 
 const products = [
   { id: "rodman-allstar", name: "All Star", brand: "Rodman", price: 8000 },
@@ -45,45 +40,22 @@ function formatPhone(value) {
   return `${phone.slice(0, 2)} ${phone.slice(2, 5)} ${phone.slice(5, 7)} ${phone.slice(7, 9)}`;
 }
 
-function readStoredAccounts() {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEYS.accounts);
-
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.map((account) => ({
-      ...account,
-      points: typeof account.points === "number" ? account.points : 0,
-      totalEarned:
-        typeof account.totalEarned === "number" ? account.totalEarned : 0,
-    }));
-  } catch {
-    return [];
-  }
-}
-
 export default function AdminPage() {
   const [isAuthed, setIsAuthed] = useState(false);
+  const [adminPin, setAdminPin] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [authError, setAuthError] = useState("");
   const [accounts, setAccounts] = useState([]);
-  const [activeSession, setActiveSession] = useState("");
+  const [orders, setOrders] = useState([]);
   const [notice, setNotice] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const savedAdmin = window.sessionStorage.getItem(STORAGE_KEYS.adminSession);
+    const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
 
-    if (savedAdmin === "granted") {
+    if (savedAdmin) {
+      setAdminPin(savedAdmin);
       setIsAuthed(true);
     }
   }, []);
@@ -96,16 +68,45 @@ export default function AdminPage() {
     refreshData();
   }, [isAuthed]);
 
-  function refreshData() {
-    setAccounts(readStoredAccounts());
-    setActiveSession(window.localStorage.getItem(STORAGE_KEYS.session) || "");
+  function apiHeaders() {
+    return {
+      "Content-Type": "application/json",
+      "x-admin-pin": adminPin,
+    };
+  }
+
+  async function refreshData() {
+    try {
+      const [accRes, ordRes] = await Promise.all([
+        fetch("/api/admin/accounts", { headers: apiHeaders() }),
+        fetch("/api/admin/orders", { headers: apiHeaders() }),
+      ]);
+
+      if (accRes.ok) {
+        const data = await accRes.json();
+        setAccounts(
+          data.map((row) => ({
+            ...row,
+            points: row.points ?? 0,
+            totalEarned: row.total_earned ?? 0,
+          })),
+        );
+      }
+
+      if (ordRes.ok) {
+        setOrders(await ordRes.json());
+      }
+    } catch {
+      setNotice("Erreur de chargement des donnees.");
+    }
   }
 
   function handleLogin(event) {
     event.preventDefault();
 
     if (pinInput.trim() === ADMIN_PIN) {
-      window.sessionStorage.setItem(STORAGE_KEYS.adminSession, "granted");
+      window.sessionStorage.setItem(ADMIN_SESSION_KEY, pinInput.trim());
+      setAdminPin(pinInput.trim());
       setIsAuthed(true);
       setAuthError("");
       setPinInput("");
@@ -117,12 +118,13 @@ export default function AdminPage() {
   }
 
   function handleLogout() {
-    window.sessionStorage.removeItem(STORAGE_KEYS.adminSession);
+    window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
     setIsAuthed(false);
+    setAdminPin("");
     setNotice("");
   }
 
-  function deleteAccount(phone) {
+  async function deleteAccount(phone) {
     const confirmed = window.confirm(
       `Supprimer le compte ${formatPhone(phone)} ? Cette action est irreversible.`,
     );
@@ -131,44 +133,27 @@ export default function AdminPage() {
       return;
     }
 
-    const nextAccounts = accounts.filter((account) => account.phone !== phone);
-    window.localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(nextAccounts));
+    try {
+      await fetch("/api/admin/accounts", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ phone }),
+      });
 
-    if (activeSession === phone) {
-      window.localStorage.removeItem(STORAGE_KEYS.session);
+      setAccounts((prev) => prev.filter((a) => a.phone !== phone));
+      setNotice(`Compte ${formatPhone(phone)} supprime.`);
+    } catch {
+      setNotice("Erreur lors de la suppression.");
     }
-
-    setAccounts(nextAccounts);
-    setActiveSession(
-      window.localStorage.getItem(STORAGE_KEYS.session) || "",
-    );
-    setNotice(`Compte ${formatPhone(phone)} supprime.`);
   }
 
-  function clearAllAccounts() {
-    const confirmed = window.confirm(
-      "Supprimer TOUS les comptes memorises sur cet appareil ?",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    window.localStorage.removeItem(STORAGE_KEYS.accounts);
-    window.localStorage.removeItem(STORAGE_KEYS.session);
-    setAccounts([]);
-    setActiveSession("");
-    setNotice("Tous les comptes ont ete supprimes.");
-  }
-
-  function adjustPoints(phone) {
+  async function adjustPoints(phone) {
     const account = accounts.find((entry) => entry.phone === phone);
 
     if (!account) {
       return;
     }
 
-    const current = typeof account.points === "number" ? account.points : 0;
     const input = window.prompt(
       `Picsou Points pour ${account.name}\nUtilise + ou - pour ajouter/retirer (ex : +50, -10) ou entre un nombre pour fixer le solde.`,
       "+10",
@@ -192,34 +177,34 @@ export default function AdminPage() {
       return;
     }
 
-    let nextPoints;
-    let nextTotalEarned =
-      typeof account.totalEarned === "number" ? account.totalEarned : 0;
+    try {
+      const body = isDelta
+        ? { phone, pointsDelta: parsed }
+        : { phone, pointsAbsolute: parsed };
 
-    if (isDelta) {
-      nextPoints = Math.max(0, current + parsed);
-      if (parsed > 0) {
-        nextTotalEarned += parsed;
+      const res = await fetch("/api/admin/accounts", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        setNotice("Erreur lors de la mise a jour.");
+        return;
       }
-    } else {
-      nextPoints = Math.max(0, parsed);
-      if (nextPoints > nextTotalEarned) {
-        nextTotalEarned = nextPoints;
-      }
+
+      const updated = await res.json();
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.phone === phone
+            ? { ...a, points: updated.points, totalEarned: updated.total_earned ?? a.totalEarned }
+            : a,
+        ),
+      );
+      setNotice(`${account.name} : solde mis a jour (${updated.points} pts).`);
+    } catch {
+      setNotice("Erreur reseau.");
     }
-
-    const nextAccounts = accounts.map((entry) =>
-      entry.phone === phone
-        ? { ...entry, points: nextPoints, totalEarned: nextTotalEarned }
-        : entry,
-    );
-
-    window.localStorage.setItem(
-      STORAGE_KEYS.accounts,
-      JSON.stringify(nextAccounts),
-    );
-    setAccounts(nextAccounts);
-    setNotice(`${account.name} : solde mis a jour (${nextPoints} pts).`);
   }
 
   const productStats = useMemo(() => {
@@ -344,11 +329,9 @@ export default function AdminPage() {
           <span className="stat-hint">{Object.keys(productStats).length} marques</span>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Session active</span>
-          <strong className="stat-value">{activeSession ? "Oui" : "Non"}</strong>
-          <span className="stat-hint">
-            {activeSession ? formatPhone(activeSession) : "Aucun client connecte"}
-          </span>
+          <span className="stat-label">Commandes</span>
+          <strong className="stat-value">{orders.length}</strong>
+          <span className="stat-hint">enregistrees dans la base</span>
         </article>
       </section>
 
@@ -357,21 +340,13 @@ export default function AdminPage() {
           <div>
             <h2>Comptes clients</h2>
             <p className="admin-section-copy">
-              Liste des comptes crees sur cet appareil. Les comptes sont stockes
-              localement (localStorage) et ne sont pas partages entre appareils.
+              Tous les comptes clients enregistres dans la base de donnees.
+              Les donnees sont partagees entre tous les appareils.
             </p>
           </div>
           <div className="admin-section-actions">
             <button className="button secondary" onClick={refreshData} type="button">
               Rafraichir
-            </button>
-            <button
-              className="button danger"
-              disabled={!accounts.length}
-              onClick={clearAllAccounts}
-              type="button"
-            >
-              Tout supprimer
             </button>
           </div>
         </div>
@@ -384,7 +359,7 @@ export default function AdminPage() {
                   <th>Nom</th>
                   <th>Telephone</th>
                   <th>Points</th>
-                  <th>Statut</th>
+                  <th>Inscrit le</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -398,12 +373,10 @@ export default function AdminPage() {
                         {typeof account.points === "number" ? account.points : 0} pts
                       </span>
                     </td>
-                    <td data-label="Statut">
-                      {activeSession === account.phone ? (
-                        <span className="status-chip status-active">Connecte</span>
-                      ) : (
-                        <span className="status-chip">Inactif</span>
-                      )}
+                    <td data-label="Inscrit le">
+                      {account.created_at
+                        ? new Date(account.created_at).toLocaleDateString("fr-FR")
+                        : "-"}
                     </td>
                     <td data-label="Actions">
                       <div className="admin-row-actions">
@@ -521,9 +494,8 @@ export default function AdminPage() {
 
       <footer className="admin-footer">
         <p>
-          Admin PicsouLand - les donnees sont stockees localement dans le
-          navigateur (localStorage). Pour une gestion multi-appareils, un backend
-          serait necessaire.
+          Admin PicsouLand - les donnees sont stockees dans la base de donnees
+          PostgreSQL (Neon) et partagees entre tous les appareils.
         </p>
       </footer>
     </main>

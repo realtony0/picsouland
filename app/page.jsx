@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const STORAGE_KEYS = {
-  accounts: "picsouland_accounts",
   ageGate: "picsouland_age_gate",
-  session: "picsouland_session_phone",
+  session: "picsouland_session",
   installDismissed: "picsouland_install_dismissed",
 };
 
@@ -254,12 +253,16 @@ function computeRewardDiscount(reward, cartTotal, deliveryPrice) {
   return 0;
 }
 
-function normalizeLoyaltyAccount(account) {
+function normalizeDbAccount(row) {
+  if (!row) {
+    return null;
+  }
+
   return {
-    ...account,
-    points: typeof account.points === "number" ? account.points : 0,
-    totalEarned:
-      typeof account.totalEarned === "number" ? account.totalEarned : 0,
+    name: row.name,
+    phone: row.phone,
+    points: row.points ?? 0,
+    totalEarned: row.total_earned ?? row.totalEarned ?? 0,
   };
 }
 
@@ -381,26 +384,6 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
   return lines.join("\n");
 }
 
-function readStoredAccounts() {
-  try {
-    const rawAccounts = window.localStorage.getItem(STORAGE_KEYS.accounts);
-
-    if (!rawAccounts) {
-      return [];
-    }
-
-    const parsedAccounts = JSON.parse(rawAccounts);
-
-    if (!Array.isArray(parsedAccounts)) {
-      return [];
-    }
-
-    return parsedAccounts.map(normalizeLoyaltyAccount);
-  } catch {
-    return [];
-  }
-}
-
 export default function HomePage() {
   const [ageGateStatus, setAgeGateStatus] = useState("pending");
   const [filter, setFilter] = useState("all");
@@ -411,8 +394,8 @@ export default function HomePage() {
     area: "",
     phone: "",
   });
-  const [accounts, setAccounts] = useState([]);
-  const [currentUserPhone, setCurrentUserPhone] = useState("");
+  const [currentAccount, setCurrentAccount] = useState(null);
+  const [sessionCredentials, setSessionCredentials] = useState(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [authMode, setAuthMode] = useState("signup");
   const [authStatus, setAuthStatus] = useState("");
@@ -433,17 +416,33 @@ export default function HomePage() {
   const [selectedRewardId, setSelectedRewardId] = useState("");
 
   useEffect(() => {
-    const storedAccounts = readStoredAccounts();
-    const storedSession = window.localStorage.getItem(STORAGE_KEYS.session) || "";
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
-
-    setAccounts(storedAccounts);
-
-    if (storedSession && storedAccounts.some((account) => account.phone === storedSession)) {
-      setCurrentUserPhone(storedSession);
-    }
-
     setAgeGateStatus(ageGateValue === "yes" ? "granted" : "pending");
+
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.session);
+      if (!stored) return;
+      const creds = JSON.parse(stored);
+      if (!creds || !creds.phone || !creds.pin) return;
+      setSessionCredentials(creds);
+
+      fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: creds.phone, pin: creds.pin }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && !data.error) {
+            setCurrentAccount(normalizeDbAccount(data));
+          } else {
+            window.localStorage.removeItem(STORAGE_KEYS.session);
+          }
+        })
+        .catch(() => {});
+    } catch {
+      window.localStorage.removeItem(STORAGE_KEYS.session);
+    }
   }, []);
 
   useEffect(() => {
@@ -506,9 +505,6 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [ageGateStatus, deviceKind, isStandalone]);
 
-  const currentAccount =
-    accounts.find((account) => account.phone === currentUserPhone) || null;
-
   useEffect(() => {
     if (!currentAccount) {
       return;
@@ -564,11 +560,6 @@ export default function HomePage() {
     currentAccount,
   });
 
-  function persistAccounts(nextAccounts) {
-    setAccounts(nextAccounts);
-    window.localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(nextAccounts));
-  }
-
   function openAccountPanel(mode = "signup") {
     setAuthMode(mode);
     setAuthStatus("");
@@ -623,7 +614,7 @@ export default function HomePage() {
     }));
   }
 
-  function handleSignup(event) {
+  async function handleSignup(event) {
     event.preventDefault();
 
     if (!signupForm.name.trim()) {
@@ -642,45 +633,51 @@ export default function HomePage() {
     }
 
     const normalizedPhone = normalizePhone(signupForm.phone);
+    setAuthStatus("Creation du compte...");
 
-    if (accounts.some((account) => account.phone === normalizedPhone)) {
-      setAuthStatus("Ce numero a deja un compte. Connecte-toi avec ton PIN.");
-      setAuthMode("login");
-      setLoginForm((currentForm) => ({
-        ...currentForm,
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: signupForm.name.trim(),
+          phone: normalizedPhone,
+          pin: signupForm.pin,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          setAuthStatus("Ce numero a deja un compte. Connecte-toi avec ton PIN.");
+          setAuthMode("login");
+          setLoginForm((f) => ({ ...f, phone: formatPhone(normalizedPhone) }));
+        } else {
+          setAuthStatus(data.error || "Erreur lors de la creation.");
+        }
+        return;
+      }
+
+      const creds = { phone: normalizedPhone, pin: signupForm.pin };
+      window.localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(creds));
+      setSessionCredentials(creds);
+      setCurrentAccount(normalizeDbAccount(data));
+      setCustomer((c) => ({
+        ...c,
+        name: data.name,
         phone: formatPhone(normalizedPhone),
       }));
-      return;
+      setSignupForm({ name: "", phone: "", pin: "" });
+      setAuthStatus(
+        `Compte cree ! Tu recois ${LOYALTY.WELCOME_BONUS} Picsou Points de bienvenue.`,
+      );
+    } catch {
+      setAuthStatus("Erreur reseau. Reessaie.");
     }
-
-    const nextAccount = {
-      name: signupForm.name.trim(),
-      phone: normalizedPhone,
-      pin: signupForm.pin,
-      points: LOYALTY.WELCOME_BONUS,
-      totalEarned: LOYALTY.WELCOME_BONUS,
-    };
-
-    const nextAccounts = [...accounts, nextAccount];
-    persistAccounts(nextAccounts);
-    window.localStorage.setItem(STORAGE_KEYS.session, normalizedPhone);
-    setCurrentUserPhone(normalizedPhone);
-    setCustomer((currentCustomer) => ({
-      ...currentCustomer,
-      name: nextAccount.name,
-      phone: formatPhone(normalizedPhone),
-    }));
-    setSignupForm({
-      name: "",
-      phone: "",
-      pin: "",
-    });
-    setAuthStatus(
-      `Compte cree ! Tu recois ${LOYALTY.WELCOME_BONUS} Picsou Points de bienvenue.`,
-    );
   }
 
-  function handleLogin(event) {
+  async function handleLogin(event) {
     event.preventDefault();
 
     if (!isValidSenegalPhone(loginForm.phone)) {
@@ -694,33 +691,45 @@ export default function HomePage() {
     }
 
     const normalizedPhone = normalizePhone(loginForm.phone);
-    const account = accounts.find(
-      (storedAccount) =>
-        storedAccount.phone === normalizedPhone && storedAccount.pin === loginForm.pin,
-    );
+    setAuthStatus("Connexion...");
 
-    if (!account) {
-      setAuthStatus("Numero ou code PIN incorrect.");
-      return;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          pin: loginForm.pin,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthStatus(data.error || "Numero ou code PIN incorrect.");
+        return;
+      }
+
+      const creds = { phone: normalizedPhone, pin: loginForm.pin };
+      window.localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(creds));
+      setSessionCredentials(creds);
+      setCurrentAccount(normalizeDbAccount(data));
+      setCustomer((c) => ({
+        ...c,
+        name: c.name || data.name,
+        phone: c.phone || formatPhone(normalizedPhone),
+      }));
+      setLoginForm({ phone: "", pin: "" });
+      setAuthStatus("Connexion reussie.");
+    } catch {
+      setAuthStatus("Erreur reseau. Reessaie.");
     }
-
-    window.localStorage.setItem(STORAGE_KEYS.session, normalizedPhone);
-    setCurrentUserPhone(normalizedPhone);
-    setCustomer((currentCustomer) => ({
-      ...currentCustomer,
-      name: currentCustomer.name || account.name,
-      phone: currentCustomer.phone || formatPhone(normalizedPhone),
-    }));
-    setLoginForm({
-      phone: "",
-      pin: "",
-    });
-    setAuthStatus("Connexion reussie.");
   }
 
   function handleLogout() {
     window.localStorage.removeItem(STORAGE_KEYS.session);
-    setCurrentUserPhone("");
+    setSessionCredentials(null);
+    setCurrentAccount(null);
     setAuthMode("login");
     setAuthStatus("Compte deconnecte.");
   }
@@ -736,19 +745,42 @@ export default function HomePage() {
       return;
     }
 
-    if (currentAccount) {
-      const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
-      const updatedAccount = {
-        ...currentAccount,
-        points: Math.max(0, currentAccount.points + earnedPoints - usedPoints),
-        totalEarned: currentAccount.totalEarned + earnedPoints,
-      };
-      const updatedAccounts = accounts.map((account) =>
-        account.phone === currentAccount.phone ? updatedAccount : account,
-      );
-      persistAccounts(updatedAccounts);
-      setSelectedRewardId("");
-    }
+    const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
+
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: sessionCredentials?.phone || null,
+          pin: sessionCredentials?.pin || null,
+          items: cartEntries.map((item) => ({
+            id: item.id,
+            name: item.name,
+            brand: item.brand,
+            price: item.price,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+          })),
+          subtotal: cartTotal,
+          deliveryZone: customer.area,
+          deliveryPrice: deliveryPrice,
+          rewardId: canUseReward ? selectedReward.id : null,
+          rewardDiscount: rewardDiscount,
+          grandTotal: grandTotal,
+          pointsEarned: earnedPoints,
+          pointsUsed: usedPoints,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.account) {
+        setCurrentAccount(normalizeDbAccount(data.account));
+      }
+    } catch {}
+
+    setSelectedRewardId("");
 
     try {
       await navigator.clipboard.writeText(generatedMessage);
