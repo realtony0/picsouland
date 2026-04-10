@@ -649,6 +649,20 @@ export default function HomePage() {
       return;
     }
 
+    const cleanNumber = formatWhatsappNumber(whatsappNumber);
+
+    if (cleanNumber) {
+      window.open(
+        `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+
+    try {
+      await navigator.clipboard.writeText(generatedMessage);
+    } catch {}
+
     const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
 
     try {
@@ -684,27 +698,7 @@ export default function HomePage() {
       }
     } catch {}
 
-    if (currentAccount && earnedPoints > 0) {
-      window.alert(
-        `Commande envoyee ! Tes ${earnedPoints} Picsou Points seront credites une fois la commande confirmee.`,
-      );
-    }
-
     setSelectedRewardId("");
-
-    try {
-      await navigator.clipboard.writeText(generatedMessage);
-    } catch {}
-
-    const cleanNumber = formatWhatsappNumber(whatsappNumber);
-
-    if (cleanNumber) {
-      window.open(
-        `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`,
-        "_blank",
-        "noopener,noreferrer",
-      );
-    }
   }
 
   function clearCart() {
