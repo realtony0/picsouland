@@ -652,11 +652,7 @@ export default function HomePage() {
     const cleanNumber = formatWhatsappNumber(whatsappNumber);
 
     if (cleanNumber) {
-      window.open(
-        `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`,
-        "_blank",
-        "noopener,noreferrer",
-      );
+      window.location.href = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`;
     }
 
     try {
