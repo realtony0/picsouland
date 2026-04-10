@@ -88,9 +88,8 @@ const LOYALTY = {
     {
       id: "half-puff",
       cost: 100,
-      label: "4 000 F CFA offert (moitie d'une puff)",
-      type: "flat",
-      value: 4000,
+      label: "-50% sur une puff",
+      type: "half-puff",
     },
   ],
 };
@@ -118,7 +117,7 @@ function pointsForOrder() {
   return LOYALTY.POINTS_PER_ORDER;
 }
 
-function computeRewardDiscount(reward, cartTotal, deliveryPrice) {
+function computeRewardDiscount(reward, cartTotal, deliveryPrice, cartEntries) {
   if (!reward) {
     return 0;
   }
@@ -133,6 +132,14 @@ function computeRewardDiscount(reward, cartTotal, deliveryPrice) {
 
   if (reward.type === "percent") {
     return Math.round(cartTotal * reward.value);
+  }
+
+  if (reward.type === "half-puff" && cartEntries && cartEntries.length) {
+    const cheapest = cartEntries.reduce(
+      (min, item) => (item.price < min ? item.price : min),
+      cartEntries[0].price,
+    );
+    return Math.round(cheapest / 2);
   }
 
   return 0;
@@ -262,7 +269,7 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
   }
 
   if (currentAccount && earnedPoints > 0) {
-    lines.push("", `Picsou Points gagnes : +${earnedPoints}`);
+    lines.push("", `Picsou Points a crediter : +${earnedPoints} (apres confirmation)`);
   }
 
   lines.push("", "Merci.");
@@ -437,7 +444,7 @@ export default function HomePage() {
       currentAccount.points >= selectedReward.cost,
   );
   const rewardDiscount = canUseReward
-    ? computeRewardDiscount(selectedReward, cartTotal, deliveryPrice)
+    ? computeRewardDiscount(selectedReward, cartTotal, deliveryPrice, cartEntries)
     : 0;
   const earnedPoints = currentAccount && cartEntries.length ? pointsForOrder() : 0;
   const grandTotal = Math.max(
@@ -670,6 +677,12 @@ export default function HomePage() {
         setCurrentAccount(normalizeDbAccount(data.account));
       }
     } catch {}
+
+    if (currentAccount && earnedPoints > 0) {
+      window.alert(
+        `Commande envoyee ! Tes ${earnedPoints} Picsou Points seront credites une fois la commande confirmee.`,
+      );
+    }
 
     setSelectedRewardId("");
 
@@ -1235,8 +1248,8 @@ export default function HomePage() {
                 </div>
                 {cartEntries.length && earnedPoints > 0 ? (
                   <p className="loyalty-cart-earn">
-                    Tu vas gagner <strong>+{earnedPoints} pts</strong> avec
-                    cette commande.
+                    <strong>+{earnedPoints} pts</strong> seront credites apres
+                    confirmation de ta commande.
                   </p>
                 ) : null}
                 <label className="loyalty-reward-label">

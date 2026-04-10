@@ -259,6 +259,49 @@ export default function AdminPage() {
     }
   }
 
+  async function confirmOrder(orderId) {
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({ orderId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setNotice(data.error || "Erreur lors de la confirmation.");
+        return;
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId ? { ...o, status: "confirmed" } : o,
+        ),
+      );
+
+      if (data.account) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.phone === data.account.phone
+              ? {
+                  ...a,
+                  points: data.account.points,
+                  totalEarned: data.account.total_earned ?? a.totalEarned,
+                }
+              : a,
+          ),
+        );
+      }
+
+      setNotice(`Commande #${orderId} confirmee. Points credites.`);
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  const pendingOrders = orders.filter((o) => o.status === "pending");
+
   const productStats = useMemo(() => {
     const stats = {};
 
@@ -596,6 +639,104 @@ export default function AdminPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>
+              Commandes
+              {pendingOrders.length > 0 ? (
+                <span className="pending-badge">{pendingOrders.length} en attente</span>
+              ) : null}
+            </h2>
+            <p className="admin-section-copy">
+              Confirme les commandes pour crediter les Picsou Points aux clients.
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button className="button secondary" onClick={refreshData} type="button">
+              Rafraichir
+            </button>
+          </div>
+        </div>
+
+        {orders.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Client</th>
+                  <th>Articles</th>
+                  <th>Total</th>
+                  <th>Points</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order) => (
+                  <tr
+                    className={order.status === "pending" ? "order-pending" : ""}
+                    key={order.id}
+                  >
+                    <td data-label="#">{order.id}</td>
+                    <td data-label="Client">
+                      {order.account_name || "Anonyme"}
+                      {order.account_phone ? (
+                        <small style={{ display: "block", color: "var(--muted)" }}>
+                          {formatPhone(order.account_phone)}
+                        </small>
+                      ) : null}
+                    </td>
+                    <td data-label="Articles">
+                      {Array.isArray(order.items)
+                        ? order.items
+                            .map((item) => `${item.brand} ${item.name} x${item.quantity}`)
+                            .join(", ")
+                        : "-"}
+                    </td>
+                    <td data-label="Total">{formatPrice(order.grand_total)}</td>
+                    <td data-label="Points">
+                      {order.points_earned > 0 ? (
+                        <span className="points-chip">+{order.points_earned}</span>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td data-label="Statut">
+                      {order.status === "confirmed" ? (
+                        <span className="status-chip status-active">Confirmee</span>
+                      ) : (
+                        <span className="status-chip status-pending">En attente</span>
+                      )}
+                    </td>
+                    <td data-label="Actions">
+                      {order.status === "pending" ? (
+                        <button
+                          className="button primary small"
+                          onClick={() => confirmOrder(order.id)}
+                          type="button"
+                        >
+                          Confirmer
+                        </button>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                          {order.created_at
+                            ? new Date(order.created_at).toLocaleDateString("fr-FR")
+                            : "-"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="admin-empty">Aucune commande enregistree.</p>
+        )}
       </section>
 
       <footer className="admin-footer">

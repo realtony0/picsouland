@@ -43,6 +43,18 @@ export async function POST(request) {
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`;
 
     await sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'orders' AND column_name = 'status'
+        ) THEN
+          ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';
+        END IF;
+      END $$
+    `;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS products (
         id         TEXT PRIMARY KEY,
         name       TEXT NOT NULL,

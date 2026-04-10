@@ -41,7 +41,8 @@ export async function POST(request) {
     const orderRows = await sql`
       INSERT INTO orders (
         account_phone, items, subtotal, delivery_zone, delivery_price,
-        reward_id, reward_discount, grand_total, points_earned, points_used
+        reward_id, reward_discount, grand_total, points_earned, points_used,
+        status
       )
       VALUES (
         ${account ? account.phone : null},
@@ -53,17 +54,16 @@ export async function POST(request) {
         ${rewardDiscount || 0},
         ${grandTotal || 0},
         ${pointsEarned || 0},
-        ${pointsUsed || 0}
+        ${pointsUsed || 0},
+        'pending'
       )
-      RETURNING id, created_at
+      RETURNING id, created_at, status
     `;
 
-    if (account && (pointsEarned || pointsUsed)) {
+    if (account && pointsUsed > 0) {
       const updatedRows = await sql`
         UPDATE accounts
-        SET
-          points = GREATEST(0, points + ${pointsEarned || 0} - ${pointsUsed || 0}),
-          total_earned = total_earned + ${pointsEarned || 0}
+        SET points = GREATEST(0, points - ${pointsUsed})
         WHERE phone = ${account.phone}
         RETURNING name, phone, points, total_earned
       `;
