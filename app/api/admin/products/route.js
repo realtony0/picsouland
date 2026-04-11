@@ -35,10 +35,10 @@ export async function POST(request) {
     const rows = await sql`
       INSERT INTO products (id, name, brand, price, image)
       VALUES (${id}, ${name}, ${brand}, ${price}, ${image || ""})
-      RETURNING id, name, brand, price, image, in_stock
+      RETURNING id, name, brand, price, image
     `;
 
-    return Response.json(rows[0]);
+    return Response.json({ ...rows[0], in_stock: true });
   } catch (error) {
     return Response.json(
       { error: "Erreur serveur", detail: error.message },
@@ -62,17 +62,34 @@ export async function PATCH(request) {
       );
     }
 
-    const rows = await sql`
-      UPDATE products
-      SET
-        name = COALESCE(${name ?? null}, name),
-        brand = COALESCE(${brand ?? null}, brand),
-        price = COALESCE(${price ?? null}, price),
-        image = COALESCE(${image ?? null}, image),
-        in_stock = COALESCE(${in_stock ?? null}, in_stock)
-      WHERE id = ${id}
-      RETURNING id, name, brand, price, image, in_stock
-    `;
+    let rows;
+    try {
+      rows = await sql`
+        UPDATE products
+        SET
+          name = COALESCE(${name ?? null}, name),
+          brand = COALESCE(${brand ?? null}, brand),
+          price = COALESCE(${price ?? null}, price),
+          image = COALESCE(${image ?? null}, image),
+          in_stock = COALESCE(${in_stock ?? null}, in_stock)
+        WHERE id = ${id}
+        RETURNING id, name, brand, price, image, in_stock
+      `;
+    } catch {
+      rows = await sql`
+        UPDATE products
+        SET
+          name = COALESCE(${name ?? null}, name),
+          brand = COALESCE(${brand ?? null}, brand),
+          price = COALESCE(${price ?? null}, price),
+          image = COALESCE(${image ?? null}, image)
+        WHERE id = ${id}
+        RETURNING id, name, brand, price, image
+      `;
+      if (rows.length > 0) {
+        rows[0].in_stock = true;
+      }
+    }
 
     if (rows.length === 0) {
       return Response.json(

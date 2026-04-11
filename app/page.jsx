@@ -693,16 +693,6 @@ export default function HomePage() {
       return;
     }
 
-    const cleanNumber = formatWhatsappNumber(whatsappNumber);
-
-    if (cleanNumber) {
-      window.location.href = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`;
-    }
-
-    try {
-      await navigator.clipboard.writeText(generatedMessage);
-    } catch {}
-
     const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
 
     try {
@@ -739,6 +729,12 @@ export default function HomePage() {
     } catch {}
 
     setSelectedRewardId("");
+
+    const cleanNumber = formatWhatsappNumber(whatsappNumber);
+
+    if (cleanNumber) {
+      window.location.href = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`;
+    }
   }
 
   function clearCart() {

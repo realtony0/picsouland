@@ -2,11 +2,21 @@ import sql from "@/lib/db";
 
 export async function GET() {
   try {
-    const rows = await sql`
-      SELECT id, name, brand, price, image, in_stock
-      FROM products
-      ORDER BY brand, name
-    `;
+    let rows;
+    try {
+      rows = await sql`
+        SELECT id, name, brand, price, image, in_stock
+        FROM products
+        ORDER BY brand, name
+      `;
+    } catch {
+      rows = await sql`
+        SELECT id, name, brand, price, image
+        FROM products
+        ORDER BY brand, name
+      `;
+      rows = rows.map((r) => ({ ...r, in_stock: true }));
+    }
 
     return Response.json(rows);
   } catch (error) {
