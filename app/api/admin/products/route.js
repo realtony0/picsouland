@@ -35,7 +35,7 @@ export async function POST(request) {
     const rows = await sql`
       INSERT INTO products (id, name, brand, price, image)
       VALUES (${id}, ${name}, ${brand}, ${price}, ${image || ""})
-      RETURNING id, name, brand, price, image
+      RETURNING id, name, brand, price, image, in_stock
     `;
 
     return Response.json(rows[0]);
@@ -53,7 +53,7 @@ export async function PATCH(request) {
   }
 
   try {
-    const { id, name, brand, price, image } = await request.json();
+    const { id, name, brand, price, image, in_stock } = await request.json();
 
     if (!id) {
       return Response.json(
@@ -62,38 +62,16 @@ export async function PATCH(request) {
       );
     }
 
-    const fields = [];
-    const values = {};
-
-    if (name !== undefined) {
-      values.name = name;
-    }
-    if (brand !== undefined) {
-      values.brand = brand;
-    }
-    if (price !== undefined) {
-      values.price = price;
-    }
-    if (image !== undefined) {
-      values.image = image;
-    }
-
-    if (!Object.keys(values).length) {
-      return Response.json(
-        { error: "Aucun champ a modifier." },
-        { status: 400 },
-      );
-    }
-
     const rows = await sql`
       UPDATE products
       SET
-        name = COALESCE(${values.name ?? null}, name),
-        brand = COALESCE(${values.brand ?? null}, brand),
-        price = COALESCE(${values.price ?? null}, price),
-        image = COALESCE(${values.image ?? null}, image)
+        name = COALESCE(${name ?? null}, name),
+        brand = COALESCE(${brand ?? null}, brand),
+        price = COALESCE(${price ?? null}, price),
+        image = COALESCE(${image ?? null}, image),
+        in_stock = COALESCE(${in_stock ?? null}, in_stock)
       WHERE id = ${id}
-      RETURNING id, name, brand, price, image
+      RETURNING id, name, brand, price, image, in_stock
     `;
 
     if (rows.length === 0) {

@@ -278,6 +278,7 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
 
 export default function HomePage() {
   const [products, setProducts] = useState([]);
+  const [promotions, setPromotions] = useState([]);
   const [ageGateStatus, setAgeGateStatus] = useState("pending");
   const [filter, setFilter] = useState("all");
   const [cart, setCart] = useState({});
@@ -307,11 +308,17 @@ export default function HomePage() {
   const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedRewardId, setSelectedRewardId] = useState("");
+  const [orderHistory, setOrderHistory] = useState([]);
 
   useEffect(() => {
     fetch("/api/products")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setProducts(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    fetch("/api/promotions")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setPromotions(Array.isArray(data) ? data : []))
       .catch(() => {});
 
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
@@ -415,6 +422,27 @@ export default function HomePage() {
     }));
   }, [currentAccount]);
 
+  function getPromoForProduct(product) {
+    for (const promo of promotions) {
+      if (promo.product_filter && promo.product_filter !== product.id) {
+        continue;
+      }
+      if (promo.brand_filter && promo.brand_filter !== product.brand) {
+        continue;
+      }
+      return promo;
+    }
+    return null;
+  }
+
+  function getEffectivePrice(product) {
+    const promo = getPromoForProduct(product);
+    if (promo) {
+      return Math.round(product.price * (1 - promo.discount_percent / 100));
+    }
+    return product.price;
+  }
+
   const visibleProducts =
     filter === "all"
       ? products
@@ -424,10 +452,12 @@ export default function HomePage() {
     .filter((product) => (cart[product.id] || 0) > 0)
     .map((product) => {
       const quantity = cart[product.id];
+      const effectivePrice = getEffectivePrice(product);
       return {
         ...product,
+        effectivePrice,
         quantity,
-        subtotal: quantity * product.price,
+        subtotal: quantity * effectivePrice,
       };
     });
 
@@ -462,6 +492,20 @@ export default function HomePage() {
     setAuthMode(mode);
     setAuthStatus("");
     setIsAccountOpen(true);
+
+    if (sessionCredentials && sessionCredentials.phone && sessionCredentials.pin) {
+      fetch("/api/auth/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: sessionCredentials.phone,
+          pin: sessionCredentials.pin,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => setOrderHistory(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
   }
 
   function closeAccountPanel() {
@@ -1084,15 +1128,37 @@ export default function HomePage() {
                       </div>
                       <div className="product-bottom product-bottom-stack">
                         <div className="product-price-row">
-                          <strong className="product-price">{formatPrice(product.price)}</strong>
-                          {quantity > 0 ? (
+                          {(() => {
+                            const promo = getPromoForProduct(product);
+                            const effective = getEffectivePrice(product);
+                            return promo ? (
+                              <>
+                                <span className="product-price-old">{formatPrice(product.price)}</span>
+                                <strong className="product-price product-price-promo">{formatPrice(effective)}</strong>
+                                <span className="promo-badge">-{promo.discount_percent}%</span>
+                              </>
+                            ) : (
+                              <strong className="product-price">{formatPrice(product.price)}</strong>
+                            );
+                          })()}
+                          {product.in_stock === false ? (
+                            <span className="out-of-stock-pill">Rupture</span>
+                          ) : quantity > 0 ? (
                             <span className="in-cart-pill">{quantity} dans le panier</span>
                           ) : (
                             <span className="quick-pill">1 clic pour ajouter</span>
                           )}
                         </div>
 
-                        {quantity === 0 ? (
+                        {product.in_stock === false ? (
+                          <button
+                            className="button secondary full"
+                            disabled
+                            type="button"
+                          >
+                            Indisponible
+                          </button>
+                        ) : quantity === 0 ? (
                           <button
                             className="button primary full"
                             onClick={() => addToCart(product)}
@@ -1474,6 +1540,45 @@ export default function HomePage() {
                     </div>
                   );
                 })()}
+
+                {orderHistory.length > 0 ? (
+                  <div className="order-history">
+                    <span className="order-history-title">Mes commandes</span>
+                    <div className="order-history-list">
+                      {orderHistory.map((order) => (
+                        <article className="order-history-item" key={order.id}>
+                          <div className="order-history-top">
+                            <span className="order-history-date">
+                              {new Date(order.created_at).toLocaleDateString("fr-FR", {
+                                day: "numeric",
+                                month: "short",
+                              })}
+                            </span>
+                            <strong>{formatPrice(order.grand_total)}</strong>
+                            {order.status === "confirmed" ? (
+                              <span className="status-chip status-confirmed">Confirmee</span>
+                            ) : (
+                              <span className="status-chip status-pending-sm">En attente</span>
+                            )}
+                          </div>
+                          <p className="order-history-items">
+                            {Array.isArray(order.items)
+                              ? order.items
+                                  .map((item) => `${item.name} x${item.quantity}`)
+                                  .join(", ")
+                              : ""}
+                          </p>
+                          {order.points_earned > 0 ? (
+                            <span className="order-history-points">
+                              +{order.points_earned} pts
+                              {order.status !== "confirmed" ? " (en attente)" : ""}
+                            </span>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="modal-actions">
                   <button

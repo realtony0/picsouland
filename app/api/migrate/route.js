@@ -68,6 +68,31 @@ export async function POST(request) {
     await sql`CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand)`;
 
     await sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'products' AND column_name = 'in_stock'
+        ) THEN
+          ALTER TABLE products ADD COLUMN in_stock BOOLEAN NOT NULL DEFAULT true;
+        END IF;
+      END $$
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id         SERIAL PRIMARY KEY,
+        label      TEXT NOT NULL,
+        discount_percent INTEGER NOT NULL DEFAULT 0,
+        brand_filter TEXT,
+        product_filter TEXT,
+        starts_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ends_at    TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    await sql`
       INSERT INTO products (id, name, brand, price, image) VALUES
         ('rodman-allstar', 'All Star', 'Rodman', 8000, '/images/rodman-allstar.jpeg'),
         ('rodman-buzzerbeater', 'Buzzer Beater', 'Rodman', 8000, '/images/rodman-buzzerbeater.webp'),

@@ -29,6 +29,13 @@ export default function AdminPage() {
   const [accounts, setAccounts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [promos, setPromos] = useState([]);
+  const [newPromo, setNewPromo] = useState({
+    label: "",
+    discountPercent: "",
+    brandFilter: "",
+    endsAt: "",
+  });
   const [notice, setNotice] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -66,10 +73,11 @@ export default function AdminPage() {
 
   async function refreshData() {
     try {
-      const [accRes, ordRes, prodRes] = await Promise.all([
+      const [accRes, ordRes, prodRes, promoRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
         fetch("/api/admin/orders", { headers: apiHeaders() }),
         fetch("/api/products"),
+        fetch("/api/admin/promotions", { headers: apiHeaders() }),
       ]);
 
       if (accRes.ok) {
@@ -89,6 +97,10 @@ export default function AdminPage() {
 
       if (prodRes.ok) {
         setProducts(await prodRes.json());
+      }
+
+      if (promoRes.ok) {
+        setPromos(await promoRes.json());
       }
     } catch {
       setNotice("Erreur de chargement des donnees.");
@@ -263,6 +275,75 @@ export default function AdminPage() {
       setNotice("Erreur reseau ou upload echoue.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function addPromo(event) {
+    event.preventDefault();
+
+    if (!newPromo.label || !newPromo.discountPercent || !newPromo.endsAt) {
+      setNotice("Nom, pourcentage et date de fin requis.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/promotions", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          label: newPromo.label,
+          discountPercent: Number(newPromo.discountPercent),
+          brandFilter: newPromo.brandFilter || null,
+          endsAt: new Date(newPromo.endsAt).toISOString(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setNotice(data.error || "Erreur lors de la creation.");
+        return;
+      }
+
+      setPromos((prev) => [data, ...prev]);
+      setNewPromo({ label: "", discountPercent: "", brandFilter: "", endsAt: "" });
+      setNotice(`Promo "${data.label}" creee.`);
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function deletePromo(id) {
+    try {
+      await fetch("/api/admin/promotions", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id }),
+      });
+
+      setPromos((prev) => prev.filter((p) => p.id !== id));
+      setNotice("Promo supprimee.");
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function toggleStock(id, currentStock) {
+    try {
+      const res = await fetch("/api/admin/products", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id, in_stock: currentStock === false }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setProducts((prev) =>
+          prev.map((p) => (p.id === data.id ? data : p)),
+        );
+      }
+    } catch {
+      setNotice("Erreur reseau.");
     }
   }
 
@@ -592,6 +673,109 @@ export default function AdminPage() {
       <section className="admin-section">
         <div className="admin-section-head">
           <div>
+            <h2>Promotions flash</h2>
+            <p className="admin-section-copy">
+              Cree des promos temporaires. La reduction s&apos;applique automatiquement sur la boutique.
+            </p>
+          </div>
+        </div>
+
+        <form className="admin-add-form" onSubmit={addPromo}>
+          <strong>Nouvelle promo</strong>
+          <div className="admin-add-fields">
+            <input
+              onChange={(e) => setNewPromo((p) => ({ ...p, label: e.target.value }))}
+              placeholder="Nom (ex : Weekend Rodman)"
+              required
+              type="text"
+              value={newPromo.label}
+            />
+            <input
+              min="1"
+              max="99"
+              onChange={(e) => setNewPromo((p) => ({ ...p, discountPercent: e.target.value }))}
+              placeholder="% (ex : 20)"
+              required
+              type="number"
+              value={newPromo.discountPercent}
+            />
+            <select
+              onChange={(e) => setNewPromo((p) => ({ ...p, brandFilter: e.target.value }))}
+              value={newPromo.brandFilter}
+            >
+              <option value="">Tous les produits</option>
+              <option value="Rodman">Rodman uniquement</option>
+              <option value="Coolbar">Coolbar uniquement</option>
+              <option value="Hyperjoy">Hyperjoy uniquement</option>
+            </select>
+            <input
+              onChange={(e) => setNewPromo((p) => ({ ...p, endsAt: e.target.value }))}
+              required
+              type="datetime-local"
+              value={newPromo.endsAt}
+            />
+            <button className="button primary" type="submit">
+              Creer
+            </button>
+          </div>
+        </form>
+
+        {promos.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Promo</th>
+                  <th>Reduction</th>
+                  <th>Cible</th>
+                  <th>Fin</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {promos.map((promo) => {
+                  const isActive = new Date(promo.ends_at) > new Date();
+                  return (
+                    <tr className={isActive ? "" : "row-out-of-stock"} key={promo.id}>
+                      <td data-label="Promo">{promo.label}</td>
+                      <td data-label="Reduction">
+                        <span className="promo-badge">-{promo.discount_percent}%</span>
+                      </td>
+                      <td data-label="Cible">
+                        {promo.brand_filter || "Tout"}
+                      </td>
+                      <td data-label="Fin">
+                        {new Date(promo.ends_at).toLocaleDateString("fr-FR", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {!isActive ? " (expiree)" : ""}
+                      </td>
+                      <td data-label="Actions">
+                        <button
+                          className="button danger small"
+                          onClick={() => deletePromo(promo.id)}
+                          type="button"
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="admin-empty">Aucune promotion active.</p>
+        )}
+      </section>
+
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
             <h2>Catalogue produits</h2>
             <p className="admin-section-copy">
               Ajoute ou supprime des produits. Les changements sont visibles
@@ -778,8 +962,16 @@ export default function AdminPage() {
                     </td>
                   </tr>
                 ) : (
-                  <tr key={product.id}>
-                    <td data-label="Produit">{product.name}</td>
+                  <tr
+                    className={product.in_stock === false ? "row-out-of-stock" : ""}
+                    key={product.id}
+                  >
+                    <td data-label="Produit">
+                      {product.name}
+                      {product.in_stock === false ? (
+                        <span className="out-of-stock-badge">Rupture</span>
+                      ) : null}
+                    </td>
                     <td data-label="Marque">
                       <span className="brand-pill" data-brand={product.brand}>
                         {product.brand}
@@ -788,6 +980,13 @@ export default function AdminPage() {
                     <td data-label="Prix">{formatPrice(product.price)}</td>
                     <td data-label="Actions">
                       <div className="admin-row-actions">
+                        <button
+                          className={`button small ${product.in_stock === false ? "primary" : "secondary"}`}
+                          onClick={() => toggleStock(product.id, product.in_stock)}
+                          type="button"
+                        >
+                          {product.in_stock === false ? "Remettre" : "Rupture"}
+                        </button>
                         <button
                           className="button secondary small"
                           onClick={() => startEditProduct(product)}
