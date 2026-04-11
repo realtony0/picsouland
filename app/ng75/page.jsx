@@ -224,7 +224,8 @@ export default function AdminPage() {
     });
 
     if (!res.ok) {
-      throw new Error("Upload echoue");
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Upload echoue");
     }
 
     const data = await res.json();
@@ -248,8 +249,10 @@ export default function AdminPage() {
       if (newProduct.imageFile) {
         try {
           imageUrl = await uploadImage(newProduct.imageFile);
-        } catch {
-          setNotice("Upload de la photo echoue. Le produit sera ajoute sans image.");
+        } catch (uploadErr) {
+          setNotice("Upload echoue : " + uploadErr.message);
+          setUploading(false);
+          return;
         }
       }
 

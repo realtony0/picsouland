@@ -7,6 +7,13 @@ export async function POST(request) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }
 
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return Response.json(
+      { error: "BLOB_READ_WRITE_TOKEN manquant dans les variables d'environnement Vercel." },
+      { status: 500 },
+    );
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -21,12 +28,13 @@ export async function POST(request) {
     const blob = await put(`products/${file.name}`, file, {
       access: "public",
       addRandomSuffix: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
     return Response.json({ url: blob.url });
   } catch (error) {
     return Response.json(
-      { error: "Erreur upload", detail: error.message },
+      { error: "Erreur upload : " + error.message },
       { status: 500 },
     );
   }
