@@ -239,16 +239,19 @@ export default function AdminPage() {
       return;
     }
 
-    if (!newProduct.imageFile) {
-      setNotice("Ajoute une photo du produit.");
-      return;
-    }
-
     setUploading(true);
-    setNotice("Upload de la photo...");
+    setNotice(newProduct.imageFile ? "Upload de la photo..." : "Ajout du produit...");
 
     try {
-      const imageUrl = await uploadImage(newProduct.imageFile);
+      let imageUrl = "";
+
+      if (newProduct.imageFile) {
+        try {
+          imageUrl = await uploadImage(newProduct.imageFile);
+        } catch {
+          setNotice("Upload de la photo echoue. Le produit sera ajoute sans image.");
+        }
+      }
 
       const res = await fetch("/api/admin/products", {
         method: "POST",
@@ -271,8 +274,8 @@ export default function AdminPage() {
       setProducts((prev) => [...prev, data]);
       setNewProduct({ name: "", brand: newProduct.brand, price: "", imageFile: null });
       setNotice(`Produit "${data.name}" ajoute.`);
-    } catch {
-      setNotice("Erreur reseau ou upload echoue.");
+    } catch (err) {
+      setNotice("Erreur : " + (err.message || "reseau indisponible"));
     } finally {
       setUploading(false);
     }
