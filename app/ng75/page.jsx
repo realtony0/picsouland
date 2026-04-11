@@ -46,6 +46,7 @@ export default function AdminPage() {
     imageFile: null,
   });
   const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -564,6 +565,48 @@ export default function AdminPage() {
 
       {notice ? <p className="admin-notice">{notice}</p> : null}
 
+      <nav className="admin-tabs">
+        <button
+          className={`admin-tab ${activeTab === "dashboard" ? "active" : ""}`}
+          onClick={() => setActiveTab("dashboard")}
+          type="button"
+        >
+          Dashboard
+        </button>
+        <button
+          className={`admin-tab ${activeTab === "orders" ? "active" : ""}`}
+          onClick={() => setActiveTab("orders")}
+          type="button"
+        >
+          Commandes
+          {pendingOrders.length > 0 ? (
+            <span className="tab-badge">{pendingOrders.length}</span>
+          ) : null}
+        </button>
+        <button
+          className={`admin-tab ${activeTab === "products" ? "active" : ""}`}
+          onClick={() => setActiveTab("products")}
+          type="button"
+        >
+          Produits
+        </button>
+        <button
+          className={`admin-tab ${activeTab === "promos" ? "active" : ""}`}
+          onClick={() => setActiveTab("promos")}
+          type="button"
+        >
+          Promos
+        </button>
+        <button
+          className={`admin-tab ${activeTab === "clients" ? "active" : ""}`}
+          onClick={() => setActiveTab("clients")}
+          type="button"
+        >
+          Clients
+        </button>
+      </nav>
+
+      {activeTab === "dashboard" ? (
       <section className="admin-stats">
         <article className="stat-card">
           <span className="stat-label">Comptes clients</span>
@@ -602,7 +645,9 @@ export default function AdminPage() {
           <span className="stat-hint">enregistrees dans la base</span>
         </article>
       </section>
+      ) : null}
 
+      {activeTab === "clients" ? (
       <section className="admin-section">
         <div className="admin-section-head">
           <div>
@@ -675,7 +720,9 @@ export default function AdminPage() {
           </p>
         )}
       </section>
+      ) : null}
 
+      {activeTab === "promos" ? (
       <section className="admin-section">
         <div className="admin-section-head">
           <div>
@@ -778,7 +825,9 @@ export default function AdminPage() {
           <p className="admin-empty">Aucune promotion active.</p>
         )}
       </section>
+      ) : null}
 
+      {activeTab === "products" ? (
       <section className="admin-section">
         <div className="admin-section-head">
           <div>
@@ -1023,7 +1072,9 @@ export default function AdminPage() {
           </table>
         </div>
       </section>
+      ) : null}
 
+      {activeTab === "orders" ? (
       <section className="admin-section">
         <div className="admin-section-head">
           <div>
@@ -1121,6 +1172,7 @@ export default function AdminPage() {
           <p className="admin-empty">Aucune commande enregistree.</p>
         )}
       </section>
+      ) : null}
 
       <footer className="admin-footer">
         <p>
