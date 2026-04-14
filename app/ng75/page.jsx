@@ -757,9 +757,11 @@ export default function AdminPage() {
               value={newPromo.brandFilter}
             >
               <option value="">Tous les produits</option>
-              <option value="Rodman">Rodman uniquement</option>
-              <option value="Coolbar">Coolbar uniquement</option>
-              <option value="Hyperjoy">Hyperjoy uniquement</option>
+              {Array.from(new Set(products.map((p) => p.brand))).map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand} uniquement
+                </option>
+              ))}
             </select>
             <input
               onChange={(e) => setNewPromo((p) => ({ ...p, endsAt: e.target.value }))}
@@ -851,16 +853,21 @@ export default function AdminPage() {
               type="text"
               value={newProduct.name}
             />
-            <select
+            <input
+              list="brand-suggestions"
               onChange={(e) =>
                 setNewProduct((p) => ({ ...p, brand: e.target.value }))
               }
+              placeholder="Marque (ex : Rodman, ou nouvelle)"
+              required
+              type="text"
               value={newProduct.brand}
-            >
-              <option value="Rodman">Rodman</option>
-              <option value="Coolbar">Coolbar</option>
-              <option value="Hyperjoy">Hyperjoy</option>
-            </select>
+            />
+            <datalist id="brand-suggestions">
+              {Array.from(new Set(products.map((p) => p.brand))).map((brand) => (
+                <option key={brand} value={brand} />
+              ))}
+            </datalist>
             <input
               min="1"
               onChange={(e) =>
@@ -958,17 +965,15 @@ export default function AdminPage() {
                       />
                     </td>
                     <td data-label="Marque">
-                      <select
+                      <input
                         className="edit-input"
+                        list="brand-suggestions"
                         onChange={(e) =>
                           setEditingProduct((p) => ({ ...p, brand: e.target.value }))
                         }
+                        type="text"
                         value={editingProduct.brand}
-                      >
-                        <option value="Rodman">Rodman</option>
-                        <option value="Coolbar">Coolbar</option>
-                        <option value="Hyperjoy">Hyperjoy</option>
-                      </select>
+                      />
                     </td>
                     <td data-label="Prix">
                       <input
