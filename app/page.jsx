@@ -1106,12 +1106,12 @@ export default function HomePage() {
                       key={product.id}
                       style={{ animationDelay: `${index * 0.04}s` }}
                     >
-                      <Image
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         alt={`${product.brand} ${product.name}`}
                         className="product-image"
-                        height={1000}
-                        src={product.image}
-                        width={1000}
+                        loading="lazy"
+                        src={product.image || "/logo-picsouland.svg"}
                       />
                       <div className="product-top">
                         <div>
