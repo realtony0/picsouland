@@ -29,12 +29,6 @@ export default function AdminPage() {
   const [accounts, setAccounts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [newCategory, setNewCategory] = useState({
-    name: "",
-    color: "#d45b1f",
-  });
-  const [editingCategory, setEditingCategory] = useState(null);
   const [promos, setPromos] = useState([]);
   const [newPromo, setNewPromo] = useState({
     label: "",
@@ -80,12 +74,11 @@ export default function AdminPage() {
 
   async function refreshData() {
     try {
-      const [accRes, ordRes, prodRes, promoRes, catRes] = await Promise.all([
+      const [accRes, ordRes, prodRes, promoRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
         fetch("/api/admin/orders", { headers: apiHeaders() }),
         fetch("/api/products"),
         fetch("/api/admin/promotions", { headers: apiHeaders() }),
-        fetch("/api/admin/categories", { headers: apiHeaders() }),
       ]);
 
       if (accRes.ok) {
@@ -109,10 +102,6 @@ export default function AdminPage() {
 
       if (promoRes.ok) {
         setPromos(await promoRes.json());
-      }
-
-      if (catRes.ok) {
-        setCategories(await catRes.json());
       }
     } catch {
       setNotice("Erreur de chargement des donnees.");
@@ -293,98 +282,6 @@ export default function AdminPage() {
       setNotice("Erreur : " + (err.message || "reseau indisponible"));
     } finally {
       setUploading(false);
-    }
-  }
-
-  async function addCategory(event) {
-    event.preventDefault();
-
-    if (!newCategory.name.trim()) {
-      setNotice("Nom de categorie requis.");
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/admin/categories", {
-        method: "POST",
-        headers: apiHeaders(),
-        body: JSON.stringify({
-          name: newCategory.name.trim(),
-          color: newCategory.color,
-          sortOrder: categories.length + 1,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setNotice(data.error || "Erreur lors de la creation.");
-        return;
-      }
-
-      setCategories((prev) => [...prev, data]);
-      setNewCategory({ name: "", color: "#d45b1f" });
-      setNotice(`Categorie "${data.name}" creee.`);
-    } catch {
-      setNotice("Erreur reseau.");
-    }
-  }
-
-  async function saveEditCategory() {
-    if (!editingCategory) return;
-
-    try {
-      const res = await fetch("/api/admin/categories", {
-        method: "PATCH",
-        headers: apiHeaders(),
-        body: JSON.stringify({
-          id: editingCategory.id,
-          name: editingCategory.name,
-          color: editingCategory.color,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setNotice(data.error || "Erreur lors de la modification.");
-        return;
-      }
-
-      setCategories((prev) => prev.map((c) => (c.id === data.id ? data : c)));
-      setEditingCategory(null);
-      refreshData();
-      setNotice(`Categorie "${data.name}" modifiee.`);
-    } catch {
-      setNotice("Erreur reseau.");
-    }
-  }
-
-  async function deleteCategory(id) {
-    const cat = categories.find((c) => c.id === id);
-    const used = products.some((p) => p.brand === cat?.name);
-
-    if (used) {
-      if (!window.confirm(
-        `Des produits utilisent la categorie "${cat.name}". Supprimer quand meme ? (les produits garderont leur ancien nom de marque)`
-      )) {
-        return;
-      }
-    } else if (!window.confirm(`Supprimer la categorie "${cat?.name}" ?`)) {
-      return;
-    }
-
-    try {
-      await fetch("/api/admin/categories", {
-        method: "DELETE",
-        headers: apiHeaders(),
-        body: JSON.stringify({ id }),
-      });
-
-      setCategories((prev) => prev.filter((c) => c.id !== id));
-      setNotice(`Categorie "${cat?.name}" supprimee.`);
-    } catch {
-      setNotice("Erreur reseau.");
     }
   }
 
@@ -694,13 +591,6 @@ export default function AdminPage() {
           Produits
         </button>
         <button
-          className={`admin-tab ${activeTab === "categories" ? "active" : ""}`}
-          onClick={() => setActiveTab("categories")}
-          type="button"
-        >
-          Categories
-        </button>
-        <button
           className={`admin-tab ${activeTab === "promos" ? "active" : ""}`}
           onClick={() => setActiveTab("promos")}
           type="button"
@@ -832,143 +722,6 @@ export default function AdminPage() {
       </section>
       ) : null}
 
-      {activeTab === "categories" ? (
-      <section className="admin-section">
-        <div className="admin-section-head">
-          <div>
-            <h2>Categories</h2>
-            <p className="admin-section-copy">
-              Gere les marques/categories utilisees pour organiser ton catalogue.
-            </p>
-          </div>
-        </div>
-
-        <form className="admin-add-form" onSubmit={addCategory}>
-          <strong>Nouvelle categorie</strong>
-          <div className="admin-add-fields">
-            <input
-              onChange={(e) => setNewCategory((p) => ({ ...p, name: e.target.value }))}
-              placeholder="Nom (ex : Elfbar)"
-              required
-              type="text"
-              value={newCategory.name}
-            />
-            <label className="color-picker-label">
-              Couleur
-              <input
-                onChange={(e) => setNewCategory((p) => ({ ...p, color: e.target.value }))}
-                type="color"
-                value={newCategory.color}
-              />
-            </label>
-            <button className="button primary" type="submit">
-              Creer
-            </button>
-          </div>
-        </form>
-
-        {categories.length ? (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Couleur</th>
-                  <th>Produits</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((cat) =>
-                  editingCategory && editingCategory.id === cat.id ? (
-                    <tr className="editing-row" key={cat.id}>
-                      <td data-label="Nom">
-                        <input
-                          className="edit-input"
-                          onChange={(e) =>
-                            setEditingCategory((c) => ({ ...c, name: e.target.value }))
-                          }
-                          value={editingCategory.name}
-                        />
-                      </td>
-                      <td data-label="Couleur">
-                        <input
-                          onChange={(e) =>
-                            setEditingCategory((c) => ({ ...c, color: e.target.value }))
-                          }
-                          type="color"
-                          value={editingCategory.color}
-                        />
-                      </td>
-                      <td data-label="Produits">
-                        {products.filter((p) => p.brand === cat.name).length}
-                      </td>
-                      <td data-label="Actions">
-                        <div className="admin-row-actions">
-                          <button
-                            className="button primary small"
-                            onClick={saveEditCategory}
-                            type="button"
-                          >
-                            OK
-                          </button>
-                          <button
-                            className="button secondary small"
-                            onClick={() => setEditingCategory(null)}
-                            type="button"
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={cat.id}>
-                      <td data-label="Nom">
-                        <span
-                          className="category-pill"
-                          style={{ background: cat.color, color: "#fff" }}
-                        >
-                          {cat.name}
-                        </span>
-                      </td>
-                      <td data-label="Couleur">
-                        <span className="color-swatch" style={{ background: cat.color }} />
-                        <code style={{ marginLeft: 8 }}>{cat.color}</code>
-                      </td>
-                      <td data-label="Produits">
-                        {products.filter((p) => p.brand === cat.name).length}
-                      </td>
-                      <td data-label="Actions">
-                        <div className="admin-row-actions">
-                          <button
-                            className="button secondary small"
-                            onClick={() => setEditingCategory({ ...cat })}
-                            type="button"
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            className="button danger small"
-                            onClick={() => deleteCategory(cat.id)}
-                            type="button"
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="admin-empty">Aucune categorie. Cree la premiere.</p>
-        )}
-      </section>
-      ) : null}
-
       {activeTab === "promos" ? (
       <section className="admin-section">
         <div className="admin-section-head">
@@ -1004,9 +757,9 @@ export default function AdminPage() {
               value={newPromo.brandFilter}
             >
               <option value="">Tous les produits</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.name}>
-                  {cat.name} uniquement
+              {Array.from(new Set(products.map((p) => p.brand))).map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand} uniquement
                 </option>
               ))}
             </select>
@@ -1100,20 +853,21 @@ export default function AdminPage() {
               type="text"
               value={newProduct.name}
             />
-            <select
+            <input
+              list="brand-suggestions"
               onChange={(e) =>
                 setNewProduct((p) => ({ ...p, brand: e.target.value }))
               }
+              placeholder="Marque (ex : Rodman, ou nouvelle)"
               required
+              type="text"
               value={newProduct.brand}
-            >
-              <option value="">Categorie...</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.name}>
-                  {cat.name}
-                </option>
+            />
+            <datalist id="brand-suggestions">
+              {Array.from(new Set(products.map((p) => p.brand))).map((brand) => (
+                <option key={brand} value={brand} />
               ))}
-            </select>
+            </datalist>
             <input
               min="1"
               onChange={(e) =>
@@ -1211,19 +965,15 @@ export default function AdminPage() {
                       />
                     </td>
                     <td data-label="Marque">
-                      <select
+                      <input
                         className="edit-input"
+                        list="brand-suggestions"
                         onChange={(e) =>
                           setEditingProduct((p) => ({ ...p, brand: e.target.value }))
                         }
+                        type="text"
                         value={editingProduct.brand}
-                      >
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.name}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </td>
                     <td data-label="Prix">
                       <input

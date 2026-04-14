@@ -2581,47 +2581,6 @@ img {
   opacity: 0.6;
 }
 
-.color-picker-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.7);
-  font-size: 0.88rem;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.color-picker-label input[type="color"] {
-  width: 36px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  background: transparent;
-}
-
-.color-swatch {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  vertical-align: middle;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.category-pill {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.02em;
-}
-
 .editing-row {
   background: rgba(212, 91, 31, 0.06);
 }
