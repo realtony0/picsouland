@@ -80,6 +80,24 @@ export async function POST(request) {
     `;
 
     await sql`
+      CREATE TABLE IF NOT EXISTS categories (
+        id         SERIAL PRIMARY KEY,
+        name       TEXT UNIQUE NOT NULL,
+        color      TEXT NOT NULL DEFAULT '#d45b1f',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    await sql`
+      INSERT INTO categories (name, color, sort_order) VALUES
+        ('Rodman', '#d45b1f', 1),
+        ('Coolbar', '#0d7666', 2),
+        ('Hyperjoy', '#f2bb4d', 3)
+      ON CONFLICT (name) DO NOTHING
+    `;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS promotions (
         id         SERIAL PRIMARY KEY,
         label      TEXT NOT NULL,

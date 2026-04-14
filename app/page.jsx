@@ -279,6 +279,7 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
 export default function HomePage() {
   const [products, setProducts] = useState([]);
   const [promotions, setPromotions] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [ageGateStatus, setAgeGateStatus] = useState("pending");
   const [filter, setFilter] = useState("all");
   const [cart, setCart] = useState({});
@@ -319,6 +320,11 @@ export default function HomePage() {
     fetch("/api/promotions")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setPromotions(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    fetch("/api/categories")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
       .catch(() => {});
 
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
@@ -1082,7 +1088,7 @@ export default function HomePage() {
           </div>
 
           <div aria-label="Filtres de produits" className="filters" role="tablist">
-            {["all", ...Array.from(new Set(products.map((p) => p.brand)))].map((brand) => (
+            {["all", ...(categories.length ? categories.map((c) => c.name) : Array.from(new Set(products.map((p) => p.brand))))].map((brand) => (
               <button
                 className={`filter-button ${filter === brand ? "active" : ""}`}
                 key={brand}
