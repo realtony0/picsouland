@@ -39,6 +39,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [accountSearch, setAccountSearch] = useState("");
   const [newProduct, setNewProduct] = useState({
     name: "",
     brand: "Rodman",
@@ -506,6 +507,21 @@ export default function AdminPage() {
     });
   }, [products, brandFilter, search]);
 
+  const filteredAccounts = useMemo(() => {
+    const q = accountSearch.trim().toLowerCase();
+
+    if (!q) {
+      return accounts;
+    }
+
+    return accounts.filter((account) => {
+      const name = (account.name || "").toLowerCase();
+      const phone = (account.phone || "").toLowerCase();
+
+      return name.includes(q) || phone.includes(q);
+    });
+  }, [accounts, accountSearch]);
+
   if (!isAuthed) {
     return (
       <main className="admin-gate">
@@ -658,6 +674,13 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="admin-section-actions">
+            <input
+              className="admin-search-input"
+              type="search"
+              placeholder="Rechercher un nom ou un numero..."
+              value={accountSearch}
+              onChange={(event) => setAccountSearch(event.target.value)}
+            />
             <button className="button secondary" onClick={refreshData} type="button">
               Rafraichir
             </button>
@@ -665,6 +688,7 @@ export default function AdminPage() {
         </div>
 
         {accounts.length ? (
+          filteredAccounts.length ? (
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -677,7 +701,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((account) => (
+                {filteredAccounts.map((account) => (
                   <tr key={account.phone}>
                     <td data-label="Nom">{account.name}</td>
                     <td data-label="Telephone">{formatPhone(account.phone)}</td>
@@ -714,6 +738,11 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+          ) : (
+            <p className="admin-empty">
+              Aucun compte ne correspond a « {accountSearch} ».
+            </p>
+          )
         ) : (
           <p className="admin-empty">
             Aucun compte client memorise sur cet appareil.

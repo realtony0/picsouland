@@ -65,7 +65,6 @@ const OTHER_DELIVERY_AREA = "Autre zone (a confirmer)";
 
 const LOYALTY = {
   POINTS_PER_ORDER: 10,
-  WELCOME_BONUS: 10,
   TIERS: [
     { name: "Bronze", minEarned: 0, color: "#cd7f32" },
     { name: "Argent", minEarned: 30, color: "#9aa4b2" },
@@ -612,7 +611,7 @@ export default function HomePage() {
       }));
       setSignupForm({ name: "", phone: "", pin: "" });
       setAuthStatus(
-        `Compte cree ! Tu recois ${LOYALTY.WELCOME_BONUS} Picsou Points de bienvenue.`,
+        "Compte cree ! Commande pour gagner tes premiers Picsou Points.",
       );
     } catch {
       setAuthStatus("Erreur reseau. Reessaie.");

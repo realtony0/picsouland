@@ -2382,6 +2382,22 @@ img {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-search-input {
+  min-width: 220px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 0.95rem;
+  color: inherit;
+}
+
+.admin-search-input:focus {
+  outline: none;
+  border-color: var(--accent, #f5a623);
 }
 
 .admin-table-wrap {

@@ -1,7 +1,5 @@
 import sql from "@/lib/db";
 
-const WELCOME_BONUS = 10;
-
 export async function POST(request) {
   try {
     const { name, phone, pin } = await request.json();
@@ -33,7 +31,7 @@ export async function POST(request) {
 
     const rows = await sql`
       INSERT INTO accounts (name, phone, pin, points, total_earned)
-      VALUES (${name}, ${phone}, ${pin}, ${WELCOME_BONUS}, ${WELCOME_BONUS})
+      VALUES (${name}, ${phone}, ${pin}, 0, 0)
       RETURNING name, phone, points, total_earned
     `;
 
