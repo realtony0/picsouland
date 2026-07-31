@@ -92,6 +92,69 @@ export async function POST(request) {
       )
     `;
 
+    // --- Roue de la fortune : bons gagnes stockes sur le compte ---
+    await sql`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS free_delivery_credits INTEGER NOT NULL DEFAULT 0`;
+    await sql`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS free_puff_credits INTEGER NOT NULL DEFAULT 0`;
+
+    // --- Roue : trace des bons utilises sur une commande ---
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS free_delivery_used BOOLEAN NOT NULL DEFAULT false`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS free_puff_used BOOLEAN NOT NULL DEFAULT false`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS wheel_discount INTEGER NOT NULL DEFAULT 0`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS wheel_prizes (
+        id         SERIAL PRIMARY KEY,
+        label      TEXT NOT NULL,
+        type       TEXT NOT NULL DEFAULT 'nothing',
+        value      INTEGER NOT NULL DEFAULT 0,
+        weight     INTEGER NOT NULL DEFAULT 1,
+        active     BOOLEAN NOT NULL DEFAULT true,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS wheel_settings (
+        id         INTEGER PRIMARY KEY DEFAULT 1,
+        enabled    BOOLEAN NOT NULL DEFAULT true,
+        min_amount INTEGER NOT NULL DEFAULT 8000
+      )
+    `;
+
+    await sql`
+      INSERT INTO wheel_settings (id, enabled, min_amount)
+      VALUES (1, true, 8000)
+      ON CONFLICT (id) DO NOTHING
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS wheel_spins (
+        id            SERIAL PRIMARY KEY,
+        order_id      INTEGER UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+        account_phone VARCHAR(20),
+        prize_id      INTEGER,
+        prize_label   TEXT,
+        prize_type    TEXT,
+        prize_value   INTEGER NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    // Lots par defaut (uniquement si la table est vide)
+    const prizeCount = await sql`SELECT COUNT(*)::int AS n FROM wheel_prizes`;
+    if (prizeCount[0].n === 0) {
+      await sql`
+        INSERT INTO wheel_prizes (label, type, value, weight, active, sort_order) VALUES
+          ('10 Picsou Points', 'points', 10, 30, true, 1),
+          ('Perdu', 'nothing', 0, 30, true, 2),
+          ('Livraison offerte', 'delivery', 1, 15, true, 3),
+          ('Perdu', 'nothing', 0, 20, true, 4),
+          ('Une puff offerte', 'puff', 1, 5, true, 5),
+          ('Rejoue', 'nothing', 0, 0, false, 6)
+      `;
+    }
+
     await sql`
       INSERT INTO products (id, name, brand, price, image) VALUES
         ('rodman-allstar', 'All Star', 'Rodman', 8000, '/images/rodman-allstar.jpeg'),

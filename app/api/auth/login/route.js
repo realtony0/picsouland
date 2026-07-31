@@ -11,11 +11,21 @@ export async function POST(request) {
       );
     }
 
-    const rows = await sql`
-      SELECT name, phone, points, total_earned
-      FROM accounts
-      WHERE phone = ${phone} AND pin = ${pin}
-    `;
+    let rows;
+    try {
+      rows = await sql`
+        SELECT name, phone, points, total_earned,
+               free_delivery_credits, free_puff_credits
+        FROM accounts
+        WHERE phone = ${phone} AND pin = ${pin}
+      `;
+    } catch {
+      rows = await sql`
+        SELECT name, phone, points, total_earned
+        FROM accounts
+        WHERE phone = ${phone} AND pin = ${pin}
+      `;
+    }
 
     if (rows.length === 0) {
       return Response.json(

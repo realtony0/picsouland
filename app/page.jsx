@@ -154,6 +154,9 @@ function normalizeDbAccount(row) {
     phone: row.phone,
     points: row.points ?? 0,
     totalEarned: row.total_earned ?? row.totalEarned ?? 0,
+    freeDeliveryCredits:
+      row.free_delivery_credits ?? row.freeDeliveryCredits ?? 0,
+    freePuffCredits: row.free_puff_credits ?? row.freePuffCredits ?? 0,
   };
 }
 
@@ -222,10 +225,20 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
     return "";
   }
 
-  const { reward, rewardDiscount, earnedPoints, currentAccount } = loyalty;
+  const {
+    reward,
+    rewardDiscount,
+    earnedPoints,
+    currentAccount,
+    freeDeliveryDiscount = 0,
+    freePuffDiscount = 0,
+  } = loyalty;
   const subtotal = entries.reduce((sum, item) => sum + item.subtotal, 0);
   const discount = rewardDiscount || 0;
-  const total = Math.max(0, subtotal + (deliveryPrice || 0) - discount);
+  const total = Math.max(
+    0,
+    subtotal + (deliveryPrice || 0) - discount - freeDeliveryDiscount - freePuffDiscount,
+  );
   const lines = [
     "Bonjour, je souhaite commander :",
     "",
@@ -249,6 +262,14 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
     lines.push(
       `Fidelite - ${reward.label} : -${formatPrice(discount)} (${reward.cost} pts)`,
     );
+  }
+
+  if (freeDeliveryDiscount > 0) {
+    lines.push(`Bon roue - Livraison offerte : -${formatPrice(freeDeliveryDiscount)}`);
+  }
+
+  if (freePuffDiscount > 0) {
+    lines.push(`Bon roue - Puff offerte : -${formatPrice(freePuffDiscount)}`);
   }
 
   lines.push(`Total : ${formatPrice(total)}`);
@@ -308,6 +329,16 @@ export default function HomePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedRewardId, setSelectedRewardId] = useState("");
   const [orderHistory, setOrderHistory] = useState([]);
+  const [useFreeDelivery, setUseFreeDelivery] = useState(true);
+  const [useFreePuff, setUseFreePuff] = useState(true);
+  const [wheelConfig, setWheelConfig] = useState(null);
+  const [wheelOpen, setWheelOpen] = useState(false);
+  const [wheelOrderId, setWheelOrderId] = useState(null);
+  const [wheelPendingUrl, setWheelPendingUrl] = useState("");
+  const [wheelSpinning, setWheelSpinning] = useState(false);
+  const [wheelAngle, setWheelAngle] = useState(0);
+  const [wheelResult, setWheelResult] = useState(null);
+  const [wheelError, setWheelError] = useState("");
 
   useEffect(() => {
     fetch("/api/products")
@@ -318,6 +349,15 @@ export default function HomePage() {
     fetch("/api/promotions")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setPromotions(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    fetch("/api/wheel")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && !data.error) {
+          setWheelConfig(data);
+        }
+      })
       .catch(() => {});
 
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
@@ -475,16 +515,35 @@ export default function HomePage() {
   const rewardDiscount = canUseReward
     ? computeRewardDiscount(selectedReward, cartTotal, deliveryPrice, cartEntries)
     : 0;
+
+  // Bons gagnes a la roue (appliques automatiquement, desactivables).
+  const freeDeliveryCredits = currentAccount?.freeDeliveryCredits || 0;
+  const freePuffCredits = currentAccount?.freePuffCredits || 0;
+  const applyFreeDelivery =
+    freeDeliveryCredits > 0 &&
+    useFreeDelivery &&
+    deliveryPrice > 0 &&
+    customer.area !== OTHER_DELIVERY_AREA;
+  const applyFreePuff =
+    freePuffCredits > 0 && useFreePuff && cartEntries.length > 0;
+  const freeDeliveryDiscount = applyFreeDelivery ? deliveryPrice : 0;
+  const freePuffDiscount = applyFreePuff
+    ? Math.max(...cartEntries.map((item) => item.effectivePrice))
+    : 0;
+  const wheelDiscount = freeDeliveryDiscount + freePuffDiscount;
+
   const earnedPoints = currentAccount && cartEntries.length ? pointsForOrder() : 0;
   const grandTotal = Math.max(
     0,
-    cartTotal + deliveryPrice - rewardDiscount,
+    cartTotal + deliveryPrice - rewardDiscount - wheelDiscount,
   );
   const generatedMessage = buildMessage(cartEntries, customer, deliveryPrice, {
     reward: canUseReward ? selectedReward : null,
     rewardDiscount,
     earnedPoints,
     currentAccount,
+    freeDeliveryDiscount,
+    freePuffDiscount,
   });
 
   function openAccountPanel(mode = "signup") {
@@ -693,6 +752,9 @@ export default function HomePage() {
     }
 
     const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
+    const orderMessage = generatedMessage;
+    const orderTotal = grandTotal;
+    let createdOrderId = null;
 
     try {
       const res = await fetch("/api/orders", {
@@ -705,7 +767,7 @@ export default function HomePage() {
             id: item.id,
             name: item.name,
             brand: item.brand,
-            price: item.price,
+            price: item.effectivePrice,
             quantity: item.quantity,
             subtotal: item.subtotal,
           })),
@@ -717,6 +779,9 @@ export default function HomePage() {
           grandTotal: grandTotal,
           pointsEarned: earnedPoints,
           pointsUsed: usedPoints,
+          useFreeDelivery: applyFreeDelivery,
+          useFreePuff: applyFreePuff,
+          wheelDiscount: wheelDiscount,
         }),
       });
 
@@ -725,14 +790,109 @@ export default function HomePage() {
       if (res.ok && data.account) {
         setCurrentAccount(normalizeDbAccount(data.account));
       }
+      if (res.ok && data.order) {
+        createdOrderId = data.order.id;
+      }
     } catch {}
 
     setSelectedRewardId("");
 
     const cleanNumber = formatWhatsappNumber(whatsappNumber);
+    const whatsappUrl = cleanNumber
+      ? `https://wa.me/${cleanNumber}?text=${encodeURIComponent(orderMessage)}`
+      : "";
 
-    if (cleanNumber) {
-      window.location.href = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`;
+    // Roue de la fortune : si eligible, on l'ouvre avant WhatsApp.
+    const wheelEligible =
+      wheelConfig &&
+      wheelConfig.enabled &&
+      Array.isArray(wheelConfig.prizes) &&
+      wheelConfig.prizes.length > 0 &&
+      createdOrderId &&
+      currentAccount &&
+      orderTotal >= (wheelConfig.minAmount || 0);
+
+    if (wheelEligible) {
+      setWheelOrderId(createdOrderId);
+      setWheelPendingUrl(whatsappUrl);
+      setWheelResult(null);
+      setWheelError("");
+      setWheelAngle(0);
+      setWheelSpinning(false);
+      setIsCartOpen(false);
+      setWheelOpen(true);
+      return;
+    }
+
+    if (whatsappUrl) {
+      window.location.href = whatsappUrl;
+    }
+  }
+
+  async function spinWheel() {
+    if (wheelSpinning || wheelResult || !wheelOrderId) {
+      return;
+    }
+
+    setWheelError("");
+    setWheelSpinning(true);
+
+    try {
+      const res = await fetch("/api/wheel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: sessionCredentials?.phone || null,
+          pin: sessionCredentials?.pin || null,
+          orderId: wheelOrderId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setWheelSpinning(false);
+        setWheelError(data.error || "Impossible de tourner la roue.");
+        return;
+      }
+
+      // On s'aligne sur la roue AFFICHEE (celle rendue au montage).
+      const displayed =
+        Array.isArray(wheelConfig?.prizes) && wheelConfig.prizes.length
+          ? wheelConfig.prizes
+          : data.prizes || [];
+      const count = displayed.length || 1;
+      const segAngle = 360 / count;
+      const byId = displayed.findIndex((p) => p.id === data.prize.id);
+      const targetIndex =
+        byId >= 0 ? byId : data.index >= 0 ? data.index : 0;
+      // On aligne le centre du segment gagnant en haut (pointeur), + tours complets.
+      const finalAngle =
+        360 * 5 - (targetIndex * segAngle + segAngle / 2);
+
+      setWheelAngle(finalAngle);
+
+      setTimeout(() => {
+        setWheelSpinning(false);
+        setWheelResult(data.prize);
+        if (data.account) {
+          setCurrentAccount(normalizeDbAccount(data.account));
+        }
+      }, 4200);
+    } catch {
+      setWheelSpinning(false);
+      setWheelError("Erreur reseau. Reessaie.");
+    }
+  }
+
+  function finishWheel() {
+    const url = wheelPendingUrl;
+    setWheelOpen(false);
+    setWheelOrderId(null);
+    setWheelResult(null);
+    setWheelPendingUrl("");
+    if (url) {
+      window.location.href = url;
     }
   }
 
@@ -1333,6 +1493,34 @@ export default function HomePage() {
                     })}
                   </select>
                 </label>
+
+                {freeDeliveryCredits > 0 ? (
+                  <label className="wheel-voucher-toggle">
+                    <input
+                      checked={useFreeDelivery}
+                      onChange={(event) => setUseFreeDelivery(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      Utiliser ma <strong>livraison offerte</strong> (bon roue x
+                      {freeDeliveryCredits})
+                    </span>
+                  </label>
+                ) : null}
+
+                {freePuffCredits > 0 ? (
+                  <label className="wheel-voucher-toggle">
+                    <input
+                      checked={useFreePuff}
+                      onChange={(event) => setUseFreePuff(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      Utiliser ma <strong>puff offerte</strong> (bon roue x
+                      {freePuffCredits})
+                    </span>
+                  </label>
+                ) : null}
               </div>
             ) : (
               <div className="loyalty-cart-block loyalty-cart-block-guest">
@@ -1411,6 +1599,18 @@ export default function HomePage() {
                 <div className="cart-reward-row">
                   <span>Fidelite - {selectedReward.label}</span>
                   <span>-{formatPrice(rewardDiscount)}</span>
+                </div>
+              ) : null}
+              {freeDeliveryDiscount > 0 ? (
+                <div className="cart-reward-row">
+                  <span>Bon roue - Livraison offerte</span>
+                  <span>-{formatPrice(freeDeliveryDiscount)}</span>
+                </div>
+              ) : null}
+              {freePuffDiscount > 0 ? (
+                <div className="cart-reward-row">
+                  <span>Bon roue - Puff offerte</span>
+                  <span>-{formatPrice(freePuffDiscount)}</span>
                 </div>
               ) : null}
               <div className="cart-total-row">
@@ -1852,6 +2052,138 @@ export default function HomePage() {
             </p>
           </section>
         </div>
+      ) : null}
+
+      {wheelOpen ? (
+        (() => {
+          const wheelPrizes =
+            Array.isArray(wheelConfig?.prizes) && wheelConfig.prizes.length
+              ? wheelConfig.prizes
+              : [];
+          const count = wheelPrizes.length || 1;
+          const segAngle = 360 / count;
+          const colors = [
+            "#c79320",
+            "#14110c",
+            "#1f7a6b",
+            "#e0b850",
+            "#3a352d",
+            "#a5790f",
+            "#2a9d8f",
+            "#7a5a12",
+          ];
+          const gradient = `conic-gradient(${wheelPrizes
+            .map(
+              (_, i) =>
+                `${colors[i % colors.length]} ${i * segAngle}deg ${(i + 1) * segAngle}deg`,
+            )
+            .join(", ")})`;
+
+          return (
+            <div className="modal-backdrop" role="presentation">
+              <section
+                aria-modal="true"
+                className="wheel-modal"
+                role="dialog"
+              >
+                <div className="wheel-modal-head">
+                  <h2>La roue Picsou</h2>
+                  <p>
+                    Tourne la roue et tente de gagner des points, une livraison
+                    offerte ou une puff !
+                  </p>
+                </div>
+
+                <div className="wheel-stage">
+                  <span className="wheel-pointer" aria-hidden="true" />
+                  <div
+                    className="wheel-disc"
+                    style={{
+                      background: gradient,
+                      transform: `rotate(${wheelAngle}deg)`,
+                    }}
+                  >
+                    {wheelPrizes.map((prize, i) => (
+                      <div
+                        className="wheel-seg-label"
+                        key={prize.id ?? i}
+                        style={{ transform: `rotate(${i * segAngle + segAngle / 2}deg)` }}
+                      >
+                        <span>{prize.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="wheel-hub" aria-hidden="true" />
+                </div>
+
+                {wheelError ? (
+                  <p className="wheel-error">{wheelError}</p>
+                ) : null}
+
+                {wheelResult ? (
+                  <div className="wheel-result">
+                    {wheelResult.type === "nothing" ? (
+                      <>
+                        <strong>Pas de chance cette fois...</strong>
+                        <p>Retente ta chance a ta prochaine commande !</p>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Bravo, tu as gagne :</strong>
+                        <p className="wheel-prize-name">{wheelResult.label}</p>
+                        {wheelResult.type === "points" ? (
+                          <p>Tes points ont ete credites immediatement.</p>
+                        ) : null}
+                        {wheelResult.type === "delivery" ? (
+                          <p>
+                            Un bon &laquo; livraison offerte &raquo; est ajoute a
+                            ton compte pour ta prochaine commande.
+                          </p>
+                        ) : null}
+                        {wheelResult.type === "puff" ? (
+                          <p>
+                            Un bon &laquo; puff offerte &raquo; est ajoute a ton
+                            compte pour ta prochaine commande.
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="wheel-actions">
+                  {!wheelResult ? (
+                    <button
+                      className="button primary full"
+                      disabled={wheelSpinning}
+                      onClick={spinWheel}
+                      type="button"
+                    >
+                      {wheelSpinning ? "La roue tourne..." : "Tourner la roue"}
+                    </button>
+                  ) : (
+                    <button
+                      className="button primary full"
+                      onClick={finishWheel}
+                      type="button"
+                    >
+                      Envoyer ma commande sur WhatsApp
+                    </button>
+                  )}
+                  {!wheelResult && !wheelSpinning ? (
+                    <button
+                      className="button secondary full"
+                      onClick={finishWheel}
+                      type="button"
+                    >
+                      Passer et envoyer ma commande
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+          );
+        })()
       ) : null}
     </>
   );

@@ -48,6 +48,18 @@ export default function AdminPage() {
   });
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [wheelSettings, setWheelSettings] = useState({
+    enabled: true,
+    min_amount: 8000,
+  });
+  const [wheelPrizes, setWheelPrizes] = useState([]);
+  const [wheelSpins, setWheelSpins] = useState([]);
+  const [newWheelPrize, setNewWheelPrize] = useState({
+    label: "",
+    type: "points",
+    value: "",
+    weight: "",
+  });
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -75,11 +87,12 @@ export default function AdminPage() {
 
   async function refreshData() {
     try {
-      const [accRes, ordRes, prodRes, promoRes] = await Promise.all([
+      const [accRes, ordRes, prodRes, promoRes, wheelRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
         fetch("/api/admin/orders", { headers: apiHeaders() }),
         fetch("/api/products"),
         fetch("/api/admin/promotions", { headers: apiHeaders() }),
+        fetch("/api/admin/wheel", { headers: apiHeaders() }),
       ]);
 
       if (accRes.ok) {
@@ -104,8 +117,100 @@ export default function AdminPage() {
       if (promoRes.ok) {
         setPromos(await promoRes.json());
       }
+
+      if (wheelRes.ok) {
+        const wheelData = await wheelRes.json();
+        if (wheelData.settings) {
+          setWheelSettings(wheelData.settings);
+        }
+        setWheelPrizes(wheelData.prizes || []);
+        setWheelSpins(wheelData.spins || []);
+      }
     } catch {
       setNotice("Erreur de chargement des donnees.");
+    }
+  }
+
+  async function saveWheelSettings(patch) {
+    const next = { ...wheelSettings, ...patch };
+    setWheelSettings(next);
+    try {
+      await fetch("/api/admin/wheel", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          settings: {
+            enabled: next.enabled,
+            minAmount: Number(next.min_amount) || 0,
+          },
+        }),
+      });
+      setNotice("Reglages de la roue mis a jour.");
+    } catch {
+      setNotice("Erreur : reglages roue non enregistres.");
+    }
+  }
+
+  async function addWheelPrize() {
+    if (!newWheelPrize.label.trim()) {
+      setNotice("Donne un nom au lot.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/wheel", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          label: newWheelPrize.label.trim(),
+          type: newWheelPrize.type,
+          value: Number(newWheelPrize.value) || 0,
+          weight: Number(newWheelPrize.weight) || 0,
+          active: true,
+          sortOrder: wheelPrizes.length + 1,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice("Erreur : " + (data.error || "ajout impossible"));
+        return;
+      }
+      setWheelPrizes((prev) => [...prev, data]);
+      setNewWheelPrize({ label: "", type: "points", value: "", weight: "" });
+      setNotice("Lot ajoute.");
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function updateWheelPrize(id, patch) {
+    setWheelPrizes((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    );
+    try {
+      await fetch("/api/admin/wheel", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id, ...patch }),
+      });
+    } catch {
+      setNotice("Erreur : lot non enregistre.");
+    }
+  }
+
+  async function deleteWheelPrize(id) {
+    if (!window.confirm("Supprimer ce lot ?")) {
+      return;
+    }
+    try {
+      await fetch("/api/admin/wheel", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      setWheelPrizes((prev) => prev.filter((p) => p.id !== id));
+      setNotice("Lot supprime.");
+    } catch {
+      setNotice("Erreur reseau.");
     }
   }
 
@@ -620,6 +725,13 @@ export default function AdminPage() {
         >
           Clients
         </button>
+        <button
+          className={`admin-tab ${activeTab === "wheel" ? "active" : ""}`}
+          onClick={() => setActiveTab("wheel")}
+          type="button"
+        >
+          Roue
+        </button>
       </nav>
 
       {activeTab === "dashboard" ? (
@@ -748,6 +860,271 @@ export default function AdminPage() {
             Aucun compte client memorise sur cet appareil.
           </p>
         )}
+      </section>
+      ) : null}
+
+      {activeTab === "wheel" ? (
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>Roue de la fortune</h2>
+            <p className="admin-section-copy">
+              Apres chaque commande eligible, le client peut tourner la roue.
+              Le resultat est tire au sort selon les probabilites ci-dessous.
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button className="button secondary" onClick={refreshData} type="button">
+              Rafraichir
+            </button>
+          </div>
+        </div>
+
+        <div className="wheel-admin-settings">
+          <label className="wheel-admin-switch">
+            <input
+              checked={wheelSettings.enabled}
+              onChange={(event) =>
+                saveWheelSettings({ enabled: event.target.checked })
+              }
+              type="checkbox"
+            />
+            <span>
+              Roue active
+              <small>{wheelSettings.enabled ? "En marche" : "Desactivee"}</small>
+            </span>
+          </label>
+          <label className="wheel-admin-min">
+            Montant minimum de commande (F CFA)
+            <input
+              onChange={(event) =>
+                setWheelSettings((s) => ({ ...s, min_amount: event.target.value }))
+              }
+              onBlur={(event) =>
+                saveWheelSettings({ min_amount: Number(event.target.value) || 0 })
+              }
+              type="number"
+              value={wheelSettings.min_amount}
+            />
+          </label>
+        </div>
+
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Lot</th>
+                <th>Type</th>
+                <th>Valeur</th>
+                <th>Poids</th>
+                <th>Probabilite</th>
+                <th>Actif</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const totalWeight = wheelPrizes
+                  .filter((p) => p.active)
+                  .reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
+                return wheelPrizes.map((prize) => {
+                  const proba =
+                    prize.active && totalWeight > 0
+                      ? Math.round(((Number(prize.weight) || 0) / totalWeight) * 100)
+                      : 0;
+                  return (
+                    <tr
+                      className={prize.active ? "" : "row-out-of-stock"}
+                      key={prize.id}
+                    >
+                      <td data-label="Lot">
+                        <input
+                          className="wheel-cell-input"
+                          onChange={(event) =>
+                            setWheelPrizes((prev) =>
+                              prev.map((p) =>
+                                p.id === prize.id
+                                  ? { ...p, label: event.target.value }
+                                  : p,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateWheelPrize(prize.id, { label: event.target.value })
+                          }
+                          value={prize.label}
+                        />
+                      </td>
+                      <td data-label="Type">
+                        <select
+                          className="wheel-cell-input"
+                          onChange={(event) =>
+                            updateWheelPrize(prize.id, { type: event.target.value })
+                          }
+                          value={prize.type}
+                        >
+                          <option value="points">Points</option>
+                          <option value="delivery">Livraison offerte</option>
+                          <option value="puff">Puff offerte</option>
+                          <option value="nothing">Perdu / rien</option>
+                        </select>
+                      </td>
+                      <td data-label="Valeur">
+                        <input
+                          className="wheel-cell-input wheel-cell-num"
+                          disabled={prize.type !== "points"}
+                          onChange={(event) =>
+                            setWheelPrizes((prev) =>
+                              prev.map((p) =>
+                                p.id === prize.id
+                                  ? { ...p, value: event.target.value }
+                                  : p,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateWheelPrize(prize.id, {
+                              value: Number(event.target.value) || 0,
+                            })
+                          }
+                          type="number"
+                          value={prize.value}
+                        />
+                      </td>
+                      <td data-label="Poids">
+                        <input
+                          className="wheel-cell-input wheel-cell-num"
+                          onChange={(event) =>
+                            setWheelPrizes((prev) =>
+                              prev.map((p) =>
+                                p.id === prize.id
+                                  ? { ...p, weight: event.target.value }
+                                  : p,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateWheelPrize(prize.id, {
+                              weight: Number(event.target.value) || 0,
+                            })
+                          }
+                          type="number"
+                          value={prize.weight}
+                        />
+                      </td>
+                      <td data-label="Probabilite">
+                        <span className="points-chip">{proba}%</span>
+                      </td>
+                      <td data-label="Actif">
+                        <input
+                          checked={prize.active}
+                          onChange={(event) =>
+                            updateWheelPrize(prize.id, { active: event.target.checked })
+                          }
+                          type="checkbox"
+                        />
+                      </td>
+                      <td data-label="Actions">
+                        <button
+                          className="button danger small"
+                          onClick={() => deleteWheelPrize(prize.id)}
+                          type="button"
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="wheel-admin-add">
+          <h3>Ajouter un lot</h3>
+          <div className="wheel-admin-add-row">
+            <input
+              onChange={(event) =>
+                setNewWheelPrize((p) => ({ ...p, label: event.target.value }))
+              }
+              placeholder="Nom du lot"
+              value={newWheelPrize.label}
+            />
+            <select
+              onChange={(event) =>
+                setNewWheelPrize((p) => ({ ...p, type: event.target.value }))
+              }
+              value={newWheelPrize.type}
+            >
+              <option value="points">Points</option>
+              <option value="delivery">Livraison offerte</option>
+              <option value="puff">Puff offerte</option>
+              <option value="nothing">Perdu / rien</option>
+            </select>
+            <input
+              onChange={(event) =>
+                setNewWheelPrize((p) => ({ ...p, value: event.target.value }))
+              }
+              placeholder="Valeur (pts)"
+              type="number"
+              value={newWheelPrize.value}
+            />
+            <input
+              onChange={(event) =>
+                setNewWheelPrize((p) => ({ ...p, weight: event.target.value }))
+              }
+              placeholder="Poids"
+              type="number"
+              value={newWheelPrize.weight}
+            />
+            <button className="button primary" onClick={addWheelPrize} type="button">
+              Ajouter
+            </button>
+          </div>
+          <p className="admin-section-copy">
+            La probabilite = poids du lot / somme des poids des lots actifs. Mets
+            un poids a 0 ou desactive un lot pour qu&apos;il ne sorte jamais.
+          </p>
+        </div>
+
+        <div className="wheel-admin-spins">
+          <h3>Derniers tours ({wheelSpins.length})</h3>
+          {wheelSpins.length ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Client</th>
+                    <th>Commande</th>
+                    <th>Gain</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wheelSpins.map((spin) => (
+                    <tr key={spin.id}>
+                      <td data-label="Date">
+                        {spin.created_at
+                          ? new Date(spin.created_at).toLocaleString("fr-FR")
+                          : "-"}
+                      </td>
+                      <td data-label="Client">{formatPhone(spin.account_phone)}</td>
+                      <td data-label="Commande">#{spin.order_id}</td>
+                      <td data-label="Gain">
+                        {spin.prize_type === "nothing"
+                          ? "Perdu"
+                          : spin.prize_label}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="admin-empty">Aucun tour de roue pour le moment.</p>
+          )}
+        </div>
       </section>
       ) : null}
 
