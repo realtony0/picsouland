@@ -100,10 +100,10 @@ export async function POST(request) {
         ('rodman-peach-berry', 'Peach Berry', 'Rodman', 8000, '/images/rodman-peach-berry.webp'),
         ('rodman-pineapple-banana-ice', 'Pineapple Banana Ice', 'Rodman', 8000, '/images/rodman-pineapple-banana-ice.webp'),
         ('rodman-red-bull', 'Red Bull', 'Rodman', 8000, '/images/rodman-red-bull.webp'),
-        ('coolbar-cola-ice', 'Cola Ice', 'Coolbar', 7000, '/images/coolbar-cola-ice.jpeg'),
-        ('coolbar-mix-berry', 'Mix Berry', 'Coolbar', 7000, '/images/coolbar-mix-berry.png'),
-        ('coolbar-peach-ice', 'Peach Ice', 'Coolbar', 7000, '/images/coolbar-peach-ice.png'),
-        ('coolbar-watermelon', 'Watermelon', 'Coolbar', 7000, '/images/coolbar-watermelon.png'),
+        ('coolbar-cola-ice', 'Cola Ice', 'Coolbar', 6000, '/images/coolbar-cola-ice.jpeg'),
+        ('coolbar-mix-berry', 'Mix Berry', 'Coolbar', 6000, '/images/coolbar-mix-berry.png'),
+        ('coolbar-peach-ice', 'Peach Ice', 'Coolbar', 6000, '/images/coolbar-peach-ice.png'),
+        ('coolbar-watermelon', 'Watermelon', 'Coolbar', 6000, '/images/coolbar-watermelon.png'),
         ('hyperjoy-blue-razz', 'Blue Razz', 'Hyperjoy', 8000, '/images/hyperjoy-blue-razz.jpg'),
         ('hyperjoy-kiwi-passion-fruit-guava', 'Kiwi Passion Fruit Guava', 'Hyperjoy', 8000, '/images/hyperjoy-kiwi-passion-fruit-guava.jpg'),
         ('hyperjoy-triple-berry', 'Triple Berry', 'Hyperjoy', 8000, '/images/hyperjoy-triple-berry.jpg'),
@@ -111,6 +111,10 @@ export async function POST(request) {
         ('hyperjoy-watermelon-bubble-gum', 'Watermelon Bubble Gum', 'Hyperjoy', 8000, '/images/hyperjoy-watermelon-bubble-gum.jpg'),
         ('hyperjoy-watermelon-ice', 'Watermelon Ice', 'Hyperjoy', 8000, '/images/hyperjoy-watermelon-ice.jpg')
       ON CONFLICT (id) DO NOTHING
+    `;
+
+    await sql`
+      UPDATE products SET price = 6000 WHERE brand = 'Coolbar'
     `;
 
     return Response.json({ ok: true, message: "Migration terminee." });

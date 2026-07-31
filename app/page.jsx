@@ -1038,7 +1038,7 @@ export default function HomePage() {
               </article>
               <article>
                 <span>Coolbar</span>
-                <strong>7 000 F CFA</strong>
+                <strong>6 000 F CFA</strong>
               </article>
             </div>
 
