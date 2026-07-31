@@ -996,12 +996,12 @@ export default function HomePage() {
 
         <section className="section hero" id="top">
           <div className="hero-copy reveal">
-            <p className="eyebrow">Saveurs d&apos;ete &middot; Livraison a Dakar</p>
-            <h1>Le plein de saveurs fraiches pour ton ete.</h1>
+            <p className="eyebrow">Puffs premium &middot; Livraison a Dakar</p>
+            <h1>Tes saveurs preferees, commandees en un instant.</h1>
             <p className="hero-text">
-              Rodman, Coolbar, Hyperjoy : choisis tes saveurs, ajoute-les au panier
-              et fais-toi livrer partout a Dakar en quelques minutes. Frais, simple,
-              rapide.
+              Rodman, Coolbar et Hyperjoy reunis dans une seule boutique. Choisis,
+              commande et fais-toi livrer partout a Dakar. Paiement simple, compte
+              securise par PIN.
             </p>
 
             <div className="hero-actions">

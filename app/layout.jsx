@@ -1,15 +1,16 @@
-import { DM_Serif_Display, Space_Grotesk } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
 
-const displayFont = DM_Serif_Display({
+const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: "400",
+  weight: ["600", "700", "800"],
   variable: "--font-display",
 });
 
-const bodyFont = Space_Grotesk({
+const bodyFont = Instrument_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-body",
 });
 
@@ -31,7 +32,7 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#d45b1f",
+  themeColor: "#141414",
 };
 
 export default function RootLayout({ children }) {
