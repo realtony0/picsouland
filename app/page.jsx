@@ -996,11 +996,12 @@ export default function HomePage() {
 
         <section className="section hero" id="top">
           <div className="hero-copy reveal">
-            <p className="eyebrow">Boutique de puffs au Senegal</p>
-            <h1>PicsouLand simplifie la commande de tes saveurs preferees.</h1>
+            <p className="eyebrow">Saveurs d&apos;ete &middot; Livraison a Dakar</p>
+            <h1>Le plein de saveurs fraiches pour ton ete.</h1>
             <p className="hero-text">
-              Choisis parmi les collections Rodman, Coolbar et Hyperjoy, ajoute tes
-              produits au panier, puis envoie ta commande en quelques secondes.
+              Rodman, Coolbar, Hyperjoy : choisis tes saveurs, ajoute-les au panier
+              et fais-toi livrer partout a Dakar en quelques minutes. Frais, simple,
+              rapide.
             </p>
 
             <div className="hero-actions">
