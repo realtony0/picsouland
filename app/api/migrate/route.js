@@ -118,13 +118,13 @@ export async function POST(request) {
       CREATE TABLE IF NOT EXISTS wheel_settings (
         id         INTEGER PRIMARY KEY DEFAULT 1,
         enabled    BOOLEAN NOT NULL DEFAULT true,
-        min_amount INTEGER NOT NULL DEFAULT 8000
+        min_amount INTEGER NOT NULL DEFAULT 6000
       )
     `;
 
     await sql`
       INSERT INTO wheel_settings (id, enabled, min_amount)
-      VALUES (1, true, 8000)
+      VALUES (1, true, 6000)
       ON CONFLICT (id) DO NOTHING
     `;
 

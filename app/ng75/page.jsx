@@ -71,7 +71,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [wheelSettings, setWheelSettings] = useState({
     enabled: true,
-    min_amount: 8000,
+    min_amount: 6000,
   });
   const [wheelPrizes, setWheelPrizes] = useState([]);
   const [wheelSpins, setWheelSpins] = useState([]);

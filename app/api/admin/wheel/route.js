@@ -32,7 +32,7 @@ export async function GET(request) {
     `;
 
     return Response.json({
-      settings: settingsRows[0] || { enabled: true, min_amount: 8000 },
+      settings: settingsRows[0] || { enabled: true, min_amount: 6000 },
       prizes,
       spins,
     });

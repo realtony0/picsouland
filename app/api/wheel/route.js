@@ -3,7 +3,7 @@ import sql from "@/lib/db";
 async function getSettings() {
   const rows = await sql`SELECT enabled, min_amount FROM wheel_settings WHERE id = 1`;
   if (rows.length === 0) {
-    return { enabled: true, min_amount: 8000 };
+    return { enabled: true, min_amount: 6000 };
   }
   return rows[0];
 }
