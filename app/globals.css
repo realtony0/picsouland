@@ -3257,3 +3257,54 @@ img {
     width: 100%;
   }
 }
+
+/* ========== Admin : bascule mode simple / avance ========== */
+.wheel-mode-toggle {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.wheel-mode-btn {
+  flex: 1;
+  min-width: 160px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  cursor: pointer;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.94rem;
+  color: var(--ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.wheel-mode-btn small {
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.wheel-mode-btn.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+.wheel-mode-btn.active small {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.wheel-prize-chance-badge {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}

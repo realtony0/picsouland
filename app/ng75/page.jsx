@@ -68,6 +68,7 @@ export default function AdminPage() {
   });
   const [wheelPrizes, setWheelPrizes] = useState([]);
   const [wheelSpins, setWheelSpins] = useState([]);
+  const [wheelAdvanced, setWheelAdvanced] = useState(false);
   const [newWheelPrize, setNewWheelPrize] = useState({
     label: "",
     type: "points",
@@ -259,6 +260,29 @@ export default function AdminPage() {
     }
   }
 
+  // En mode simple, les probabilites sont toujours reequilibrees automatiquement :
+  // l'admin n'a jamais a raisonner en pourcentages.
+  async function equalizeWheelPrizes(list) {
+    const source = list || wheelPrizes;
+    const activeOnes = source.filter((p) => p.active);
+
+    if (activeOnes.length === 0) {
+      return;
+    }
+
+    const share = Math.floor(100 / activeOnes.length);
+    const remainder = 100 - share * activeOnes.length;
+
+    const updates = activeOnes.map((p, i) => ({
+      id: p.id,
+      weight: share + (i < remainder ? 1 : 0),
+    }));
+
+    await Promise.all(
+      updates.map((u) => updateWheelPrize(u.id, { weight: u.weight })),
+    );
+  }
+
   async function addWheelPrize() {
     if (!newWheelPrize.label.trim()) {
       setNotice("Donne un nom au lot.");
@@ -282,9 +306,14 @@ export default function AdminPage() {
         setNotice("Erreur : " + (data.error || "ajout impossible"));
         return;
       }
-      setWheelPrizes((prev) => [...prev, data]);
+      const next = [...wheelPrizes, data];
+      setWheelPrizes(next);
       setNewWheelPrize({ label: "", type: "points", value: "", weight: "" });
-      setNotice("Lot ajoute.");
+
+      if (!wheelAdvanced) {
+        await equalizeWheelPrizes(next);
+      }
+      setNotice(`Lot "${data.label}" ajoute.`);
     } catch {
       setNotice("Erreur reseau.");
     }
@@ -305,26 +334,15 @@ export default function AdminPage() {
     }
   }
 
-  async function equalizeWheelPrizes() {
-    const activeOnes = wheelPrizes.filter((p) => p.active);
+  async function toggleWheelPrizeActive(id, checked) {
+    await updateWheelPrize(id, { active: checked });
 
-    if (activeOnes.length === 0) {
-      return;
+    if (!wheelAdvanced) {
+      const next = wheelPrizes.map((p) =>
+        p.id === id ? { ...p, active: checked } : p,
+      );
+      await equalizeWheelPrizes(next);
     }
-
-    const share = Math.floor(100 / activeOnes.length);
-    const remainder = 100 - share * activeOnes.length;
-
-    const updates = activeOnes.map((p, i) => ({
-      id: p.id,
-      weight: share + (i < remainder ? 1 : 0),
-    }));
-
-    await Promise.all(
-      updates.map((u) => updateWheelPrize(u.id, { weight: u.weight })),
-    );
-
-    setNotice("Probabilites reparties equitablement.");
   }
 
   async function deleteWheelPrize(id) {
@@ -337,7 +355,12 @@ export default function AdminPage() {
         headers: apiHeaders(),
         body: JSON.stringify({ id }),
       });
-      setWheelPrizes((prev) => prev.filter((p) => p.id !== id));
+      const next = wheelPrizes.filter((p) => p.id !== id);
+      setWheelPrizes(next);
+
+      if (!wheelAdvanced) {
+        await equalizeWheelPrizes(next);
+      }
       setNotice("Lot supprime.");
     } catch {
       setNotice("Erreur reseau.");
@@ -1032,7 +1055,9 @@ export default function AdminPage() {
             <h2>Roue de la fortune</h2>
             <p className="admin-section-copy">
               Apres chaque commande eligible, le client peut tourner la roue.
-              Le resultat est tire au sort selon les probabilites ci-dessous.
+              {wheelAdvanced
+                ? " Le resultat est tire au sort selon les probabilites reglees ci-dessous."
+                : " Les chances se repartissent automatiquement entre les lots actifs, sans calcul de ta part."}
             </p>
           </div>
           <div className="admin-section-actions">
@@ -1040,6 +1065,28 @@ export default function AdminPage() {
               Rafraichir
             </button>
           </div>
+        </div>
+
+        <div className="wheel-mode-toggle">
+          <button
+            className={`wheel-mode-btn ${!wheelAdvanced ? "active" : ""}`}
+            onClick={async () => {
+              setWheelAdvanced(false);
+              await equalizeWheelPrizes();
+            }}
+            type="button"
+          >
+            Mode simple
+            <small>Chances egales, aucun calcul</small>
+          </button>
+          <button
+            className={`wheel-mode-btn ${wheelAdvanced ? "active" : ""}`}
+            onClick={() => setWheelAdvanced(true)}
+            type="button"
+          >
+            Mode avance
+            <small>Regler chaque probabilite</small>
+          </button>
         </div>
 
         <div className="wheel-admin-settings">
@@ -1081,22 +1128,28 @@ export default function AdminPage() {
 
           return (
             <>
-              <div className={`wheel-total-banner ${totalOk ? "ok" : "warn"}`}>
-                <span>
-                  {activePrizes.length === 0
-                    ? "Aucun lot actif : la roue ne peut pas tourner."
-                    : totalOk
-                      ? `Total des probabilites actives : 100% ✓`
-                      : `Total des probabilites actives : ${totalWeight}% (devrait faire 100%)`}
-                </span>
-                <button
-                  className="button secondary small"
-                  onClick={equalizeWheelPrizes}
-                  type="button"
-                >
-                  Repartir equitablement
-                </button>
-              </div>
+              {wheelAdvanced ? (
+                <div className={`wheel-total-banner ${totalOk ? "ok" : "warn"}`}>
+                  <span>
+                    {activePrizes.length === 0
+                      ? "Aucun lot actif : la roue ne peut pas tourner."
+                      : totalOk
+                        ? `Total des probabilites actives : 100% ✓`
+                        : `Total des probabilites actives : ${totalWeight}% (devrait faire 100%)`}
+                  </span>
+                  <button
+                    className="button secondary small"
+                    onClick={() => equalizeWheelPrizes()}
+                    type="button"
+                  >
+                    Repartir equitablement
+                  </button>
+                </div>
+              ) : activePrizes.length === 0 ? (
+                <div className="wheel-total-banner warn">
+                  <span>Aucun lot actif : la roue ne peut pas tourner.</span>
+                </div>
+              ) : null}
 
               <div className="wheel-prize-cards">
                 {wheelPrizes.map((prize) => {
@@ -1136,9 +1189,7 @@ export default function AdminPage() {
                           <input
                             checked={prize.active}
                             onChange={(event) =>
-                              updateWheelPrize(prize.id, {
-                                active: event.target.checked,
-                              })
+                              toggleWheelPrizeActive(prize.id, event.target.checked)
                             }
                             type="checkbox"
                           />
@@ -1195,29 +1246,35 @@ export default function AdminPage() {
                           </label>
                         ) : null}
 
-                        <label className="wheel-prize-field wheel-prize-field-narrow">
-                          Probabilite (%)
-                          <input
-                            onChange={(event) =>
-                              setWheelPrizes((prev) =>
-                                prev.map((p) =>
-                                  p.id === prize.id
-                                    ? { ...p, weight: event.target.value }
-                                    : p,
-                                ),
-                              )
-                            }
-                            onBlur={(event) =>
-                              updateWheelPrize(prize.id, {
-                                weight: Number(event.target.value) || 0,
-                              })
-                            }
-                            type="number"
-                            value={prize.weight}
-                          />
-                        </label>
+                        {wheelAdvanced ? (
+                          <label className="wheel-prize-field wheel-prize-field-narrow">
+                            Probabilite (%)
+                            <input
+                              onChange={(event) =>
+                                setWheelPrizes((prev) =>
+                                  prev.map((p) =>
+                                    p.id === prize.id
+                                      ? { ...p, weight: event.target.value }
+                                      : p,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateWheelPrize(prize.id, {
+                                  weight: Number(event.target.value) || 0,
+                                })
+                              }
+                              type="number"
+                              value={prize.weight}
+                            />
+                          </label>
+                        ) : (
+                          <span className="wheel-prize-chance-badge">
+                            {prize.active ? `${proba}% de chance` : "Ne sort pas"}
+                          </span>
+                        )}
 
-                        {!totalOk && prize.active ? (
+                        {wheelAdvanced && !totalOk && prize.active ? (
                           <span className="wheel-prize-real-proba">
                             = {proba}% des tirages reels
                           </span>
@@ -1267,22 +1324,24 @@ export default function AdminPage() {
                 value={newWheelPrize.value}
               />
             ) : null}
-            <input
-              onChange={(event) =>
-                setNewWheelPrize((p) => ({ ...p, weight: event.target.value }))
-              }
-              placeholder="Probabilite (%)"
-              type="number"
-              value={newWheelPrize.weight}
-            />
+            {wheelAdvanced ? (
+              <input
+                onChange={(event) =>
+                  setNewWheelPrize((p) => ({ ...p, weight: event.target.value }))
+                }
+                placeholder="Probabilite (%)"
+                type="number"
+                value={newWheelPrize.weight}
+              />
+            ) : null}
             <button className="button primary" onClick={addWheelPrize} type="button">
               Ajouter
             </button>
           </div>
           <p className="admin-section-copy">
-            Astuce : apres avoir ajoute ou coupe un lot, clique sur
-            &laquo; Repartir equitablement &raquo; pour que les probabilites
-            retombent automatiquement sur 100%.
+            {wheelAdvanced
+              ? "Astuce : apres avoir ajoute ou coupe un lot, clique sur « Repartir equitablement » pour que les probabilites retombent automatiquement sur 100%."
+              : "En mode simple, les chances de chaque lot actif se rajustent automatiquement des que tu ajoutes, coupes ou supprimes un lot."}
           </p>
         </div>
 
