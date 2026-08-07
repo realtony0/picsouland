@@ -5,6 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 const ADMIN_SESSION_KEY = "picsouland_admin_session";
 
+const WHEEL_TYPE_OPTIONS = [
+  { value: "points", emoji: "🎯", label: "Points de fidelite" },
+  { value: "delivery", emoji: "🚚", label: "Livraison offerte" },
+  { value: "puff", emoji: "🎁", label: "Puff offerte" },
+  { value: "nothing", emoji: "😢", label: "Aucun gain" },
+];
+
+function wheelTypeInfo(type) {
+  return (
+    WHEEL_TYPE_OPTIONS.find((option) => option.value === type) ||
+    WHEEL_TYPE_OPTIONS[0]
+  );
+}
+
 const formatter = new Intl.NumberFormat("fr-FR");
 
 function formatPrice(value) {
@@ -289,6 +303,28 @@ export default function AdminPage() {
     } catch {
       setNotice("Erreur : lot non enregistre.");
     }
+  }
+
+  async function equalizeWheelPrizes() {
+    const activeOnes = wheelPrizes.filter((p) => p.active);
+
+    if (activeOnes.length === 0) {
+      return;
+    }
+
+    const share = Math.floor(100 / activeOnes.length);
+    const remainder = 100 - share * activeOnes.length;
+
+    const updates = activeOnes.map((p, i) => ({
+      id: p.id,
+      weight: share + (i < remainder ? 1 : 0),
+    }));
+
+    await Promise.all(
+      updates.map((u) => updateWheelPrize(u.id, { weight: u.weight })),
+    );
+
+    setNotice("Probabilites reparties equitablement.");
   }
 
   async function deleteWheelPrize(id) {
@@ -1035,37 +1071,52 @@ export default function AdminPage() {
           </label>
         </div>
 
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Lot</th>
-                <th>Type</th>
-                <th>Valeur</th>
-                <th>Poids</th>
-                <th>Probabilite</th>
-                <th>Actif</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const totalWeight = wheelPrizes
-                  .filter((p) => p.active)
-                  .reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
-                return wheelPrizes.map((prize) => {
+        {(() => {
+          const activePrizes = wheelPrizes.filter((p) => p.active);
+          const totalWeight = activePrizes.reduce(
+            (sum, p) => sum + (Number(p.weight) || 0),
+            0,
+          );
+          const totalOk = activePrizes.length === 0 || totalWeight === 100;
+
+          return (
+            <>
+              <div className={`wheel-total-banner ${totalOk ? "ok" : "warn"}`}>
+                <span>
+                  {activePrizes.length === 0
+                    ? "Aucun lot actif : la roue ne peut pas tourner."
+                    : totalOk
+                      ? `Total des probabilites actives : 100% ✓`
+                      : `Total des probabilites actives : ${totalWeight}% (devrait faire 100%)`}
+                </span>
+                <button
+                  className="button secondary small"
+                  onClick={equalizeWheelPrizes}
+                  type="button"
+                >
+                  Repartir equitablement
+                </button>
+              </div>
+
+              <div className="wheel-prize-cards">
+                {wheelPrizes.map((prize) => {
                   const proba =
                     prize.active && totalWeight > 0
                       ? Math.round(((Number(prize.weight) || 0) / totalWeight) * 100)
                       : 0;
+                  const info = wheelTypeInfo(prize.type);
+
                   return (
-                    <tr
-                      className={prize.active ? "" : "row-out-of-stock"}
+                    <article
+                      className={`wheel-prize-card ${prize.active ? "" : "inactive"}`}
                       key={prize.id}
                     >
-                      <td data-label="Lot">
+                      <div className="wheel-prize-card-row">
+                        <span className="wheel-prize-emoji" aria-hidden="true">
+                          {info.emoji}
+                        </span>
                         <input
-                          className="wheel-cell-input"
+                          className="wheel-prize-label"
                           onChange={(event) =>
                             setWheelPrizes((prev) =>
                               prev.map((p) =>
@@ -1078,94 +1129,107 @@ export default function AdminPage() {
                           onBlur={(event) =>
                             updateWheelPrize(prize.id, { label: event.target.value })
                           }
+                          placeholder="Nom du lot"
                           value={prize.label}
                         />
-                      </td>
-                      <td data-label="Type">
-                        <select
-                          className="wheel-cell-input"
-                          onChange={(event) =>
-                            updateWheelPrize(prize.id, { type: event.target.value })
-                          }
-                          value={prize.type}
-                        >
-                          <option value="points">Points</option>
-                          <option value="delivery">Livraison offerte</option>
-                          <option value="puff">Puff offerte</option>
-                          <option value="nothing">Perdu / rien</option>
-                        </select>
-                      </td>
-                      <td data-label="Valeur">
-                        <input
-                          className="wheel-cell-input wheel-cell-num"
-                          disabled={prize.type !== "points"}
-                          onChange={(event) =>
-                            setWheelPrizes((prev) =>
-                              prev.map((p) =>
-                                p.id === prize.id
-                                  ? { ...p, value: event.target.value }
-                                  : p,
-                              ),
-                            )
-                          }
-                          onBlur={(event) =>
-                            updateWheelPrize(prize.id, {
-                              value: Number(event.target.value) || 0,
-                            })
-                          }
-                          type="number"
-                          value={prize.value}
-                        />
-                      </td>
-                      <td data-label="Poids">
-                        <input
-                          className="wheel-cell-input wheel-cell-num"
-                          onChange={(event) =>
-                            setWheelPrizes((prev) =>
-                              prev.map((p) =>
-                                p.id === prize.id
-                                  ? { ...p, weight: event.target.value }
-                                  : p,
-                              ),
-                            )
-                          }
-                          onBlur={(event) =>
-                            updateWheelPrize(prize.id, {
-                              weight: Number(event.target.value) || 0,
-                            })
-                          }
-                          type="number"
-                          value={prize.weight}
-                        />
-                      </td>
-                      <td data-label="Probabilite">
-                        <span className="points-chip">{proba}%</span>
-                      </td>
-                      <td data-label="Actif">
-                        <input
-                          checked={prize.active}
-                          onChange={(event) =>
-                            updateWheelPrize(prize.id, { active: event.target.checked })
-                          }
-                          type="checkbox"
-                        />
-                      </td>
-                      <td data-label="Actions">
+                        <label className="wheel-admin-switch wheel-prize-active">
+                          <input
+                            checked={prize.active}
+                            onChange={(event) =>
+                              updateWheelPrize(prize.id, {
+                                active: event.target.checked,
+                              })
+                            }
+                            type="checkbox"
+                          />
+                          <span>{prize.active ? "Actif" : "Coupe"}</span>
+                        </label>
                         <button
-                          className="button danger small"
+                          className="wheel-prize-delete"
                           onClick={() => deleteWheelPrize(prize.id)}
+                          title="Supprimer ce lot"
                           type="button"
                         >
-                          Supprimer
+                          ✕
                         </button>
-                      </td>
-                    </tr>
+                      </div>
+
+                      <div className="wheel-prize-card-row">
+                        <label className="wheel-prize-field">
+                          Ce que gagne le client
+                          <select
+                            onChange={(event) =>
+                              updateWheelPrize(prize.id, { type: event.target.value })
+                            }
+                            value={prize.type}
+                          >
+                            {WHEEL_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.emoji} {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        {prize.type === "points" ? (
+                          <label className="wheel-prize-field wheel-prize-field-narrow">
+                            Combien de points
+                            <input
+                              onChange={(event) =>
+                                setWheelPrizes((prev) =>
+                                  prev.map((p) =>
+                                    p.id === prize.id
+                                      ? { ...p, value: event.target.value }
+                                      : p,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateWheelPrize(prize.id, {
+                                  value: Number(event.target.value) || 0,
+                                })
+                              }
+                              type="number"
+                              value={prize.value}
+                            />
+                          </label>
+                        ) : null}
+
+                        <label className="wheel-prize-field wheel-prize-field-narrow">
+                          Probabilite (%)
+                          <input
+                            onChange={(event) =>
+                              setWheelPrizes((prev) =>
+                                prev.map((p) =>
+                                  p.id === prize.id
+                                    ? { ...p, weight: event.target.value }
+                                    : p,
+                                ),
+                              )
+                            }
+                            onBlur={(event) =>
+                              updateWheelPrize(prize.id, {
+                                weight: Number(event.target.value) || 0,
+                              })
+                            }
+                            type="number"
+                            value={prize.weight}
+                          />
+                        </label>
+
+                        {!totalOk && prize.active ? (
+                          <span className="wheel-prize-real-proba">
+                            = {proba}% des tirages reels
+                          </span>
+                        ) : null}
+                      </div>
+                    </article>
                   );
-                });
-              })()}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </div>
+            </>
+          );
+        })()}
 
         <div className="wheel-admin-add">
           <h3>Ajouter un lot</h3>
@@ -1174,33 +1238,40 @@ export default function AdminPage() {
               onChange={(event) =>
                 setNewWheelPrize((p) => ({ ...p, label: event.target.value }))
               }
-              placeholder="Nom du lot"
+              placeholder="Nom du lot (ex : Un paquet offert)"
               value={newWheelPrize.label}
             />
             <select
               onChange={(event) =>
-                setNewWheelPrize((p) => ({ ...p, type: event.target.value }))
+                setNewWheelPrize((p) => ({
+                  ...p,
+                  type: event.target.value,
+                  value: event.target.value === "points" ? p.value : "",
+                }))
               }
               value={newWheelPrize.type}
             >
-              <option value="points">Points</option>
-              <option value="delivery">Livraison offerte</option>
-              <option value="puff">Puff offerte</option>
-              <option value="nothing">Perdu / rien</option>
+              {WHEEL_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.emoji} {option.label}
+                </option>
+              ))}
             </select>
-            <input
-              onChange={(event) =>
-                setNewWheelPrize((p) => ({ ...p, value: event.target.value }))
-              }
-              placeholder="Valeur (pts)"
-              type="number"
-              value={newWheelPrize.value}
-            />
+            {newWheelPrize.type === "points" ? (
+              <input
+                onChange={(event) =>
+                  setNewWheelPrize((p) => ({ ...p, value: event.target.value }))
+                }
+                placeholder="Points a gagner"
+                type="number"
+                value={newWheelPrize.value}
+              />
+            ) : null}
             <input
               onChange={(event) =>
                 setNewWheelPrize((p) => ({ ...p, weight: event.target.value }))
               }
-              placeholder="Poids"
+              placeholder="Probabilite (%)"
               type="number"
               value={newWheelPrize.weight}
             />
@@ -1209,8 +1280,9 @@ export default function AdminPage() {
             </button>
           </div>
           <p className="admin-section-copy">
-            La probabilite = poids du lot / somme des poids des lots actifs. Mets
-            un poids a 0 ou desactive un lot pour qu&apos;il ne sorte jamais.
+            Astuce : apres avoir ajoute ou coupe un lot, clique sur
+            &laquo; Repartir equitablement &raquo; pour que les probabilites
+            retombent automatiquement sur 100%.
           </p>
         </div>
 

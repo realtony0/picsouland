@@ -3112,3 +3112,148 @@ img {
   border: 1px dashed var(--line-strong);
   background: var(--bg);
 }
+
+/* ========== Admin : roue, cartes de lots simplifiees ========== */
+.wheel-total-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.wheel-total-banner.ok {
+  background: rgba(31, 122, 107, 0.12);
+  border: 1px solid rgba(31, 122, 107, 0.3);
+  color: var(--teal-strong);
+}
+
+.wheel-total-banner.warn {
+  background: var(--danger-soft);
+  border: 1px solid rgba(181, 58, 43, 0.3);
+  color: var(--danger);
+}
+
+.wheel-prize-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wheel-prize-card {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wheel-prize-card.inactive {
+  opacity: 0.55;
+  background: var(--bg);
+}
+
+.wheel-prize-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.wheel-prize-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.wheel-prize-label {
+  flex: 1;
+  min-width: 160px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  font-weight: 600;
+  color: inherit;
+}
+
+.wheel-prize-active {
+  flex-shrink: 0;
+  gap: 8px !important;
+}
+
+.wheel-prize-active span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.wheel-prize-delete {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.wheel-prize-delete:hover {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.wheel-prize-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.wheel-prize-field select,
+.wheel-prize-field input {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: inherit;
+  font-weight: 500;
+  min-width: 180px;
+}
+
+.wheel-prize-field-narrow {
+  min-width: 0;
+}
+
+.wheel-prize-field-narrow input {
+  min-width: 110px;
+}
+
+.wheel-prize-real-proba {
+  font-size: 0.82rem;
+  color: var(--danger);
+  align-self: flex-end;
+}
+
+@media (max-width: 640px) {
+  .wheel-prize-card-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wheel-prize-field select,
+  .wheel-prize-field input {
+    width: 100%;
+  }
+}
