@@ -146,12 +146,10 @@ export async function POST(request) {
     if (prizeCount[0].n === 0) {
       await sql`
         INSERT INTO wheel_prizes (label, type, value, weight, active, sort_order) VALUES
-          ('10 Picsou Points', 'points', 10, 30, true, 1),
-          ('Perdu', 'nothing', 0, 30, true, 2),
-          ('Livraison offerte', 'delivery', 1, 15, true, 3),
-          ('Perdu', 'nothing', 0, 20, true, 4),
-          ('Une puff offerte', 'puff', 1, 5, true, 5),
-          ('Rejoue', 'nothing', 0, 0, false, 6)
+          ('10 Picsou Points', 'points', 10, 50, true, 1),
+          ('Livraison offerte', 'delivery', 1, 20, true, 2),
+          ('Une puff offerte', 'puff', 1, 1, true, 3),
+          ('Perdu', 'nothing', 0, 29, true, 4)
       `;
     }
 

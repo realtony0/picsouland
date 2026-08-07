@@ -19,6 +19,13 @@ function wheelTypeInfo(type) {
   );
 }
 
+const WHEEL_PRESET = [
+  { label: "10 Picsou Points", type: "points", value: 10, weight: 50 },
+  { label: "Livraison offerte", type: "delivery", value: 1, weight: 20 },
+  { label: "Une puff offerte", type: "puff", value: 1, weight: 1 },
+  { label: "Perdu", type: "nothing", value: 0, weight: 29 },
+];
+
 const formatter = new Intl.NumberFormat("fr-FR");
 
 function formatPrice(value) {
@@ -364,6 +371,65 @@ export default function AdminPage() {
       setNotice("Gain supprime.");
     } catch {
       setNotice("Erreur reseau.");
+    }
+  }
+
+  async function applyWheelPreset() {
+    const confirmed = window.confirm(
+      "Remplacer tous les gains actuels de la roue par :\n" +
+        "- Livraison offerte : 20%\n" +
+        "- Puff offerte : 1%\n" +
+        "- 10 Picsou Points : 50%\n" +
+        "- Perdu : 29%\n\n" +
+        "Continuer ?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setNotice("Application de la configuration...");
+
+    try {
+      await Promise.all(
+        wheelPrizes.map((prize) =>
+          fetch("/api/admin/wheel", {
+            method: "DELETE",
+            headers: apiHeaders(),
+            body: JSON.stringify({ id: prize.id }),
+          }),
+        ),
+      );
+
+      const results = await Promise.all(
+        WHEEL_PRESET.map((prize, i) =>
+          fetch("/api/admin/wheel", {
+            method: "POST",
+            headers: apiHeaders(),
+            body: JSON.stringify({
+              label: prize.label,
+              type: prize.type,
+              value: prize.value,
+              weight: prize.weight,
+              active: true,
+              sortOrder: i + 1,
+            }),
+          }),
+        ),
+      );
+
+      setWheelAdvanced(true);
+      await refreshData();
+
+      if (results.some((res) => !res.ok)) {
+        setNotice("Configuration partiellement appliquee : verifie les gains.");
+      } else {
+        setNotice(
+          "Configuration appliquee : livraison 20%, puff 1%, 10 pts 50%, perdu 29%.",
+        );
+      }
+    } catch {
+      setNotice("Erreur reseau pendant l'application de la configuration.");
     }
   }
 
@@ -1061,6 +1127,9 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="admin-section-actions">
+            <button className="button primary" onClick={applyWheelPreset} type="button">
+              Appliquer : livraison 20% / puff 1% / 10 pts 50% / perdu 29%
+            </button>
             <button className="button secondary" onClick={refreshData} type="button">
               Rafraichir
             </button>
