@@ -574,16 +574,27 @@ export default function HomePage() {
   const deliveryPrice = getDeliveryPrice(customer.area, deliveryZones);
   const groupedDeliveryZones = groupDeliveryZones(deliveryZones);
 
+  function isOrderWheelEligible(order) {
+    if (!wheelConfig?.enabled) {
+      return false;
+    }
+    if (order.status !== "confirmed" || order.wheel_spun) {
+      return false;
+    }
+    if (order.grand_total < (wheelConfig?.minAmount || 0)) {
+      return false;
+    }
+    if (
+      wheelConfig?.cutoffAt &&
+      new Date(order.created_at) < new Date(wheelConfig.cutoffAt)
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   // Commande la plus recente qui donne droit a la roue et pas encore jouee.
-  const eligibleWheelOrder =
-    wheelConfig?.enabled
-      ? orderHistory.find(
-          (order) =>
-            order.status === "confirmed" &&
-            !order.wheel_spun &&
-            order.grand_total >= (wheelConfig?.minAmount || 0),
-        )
-      : null;
+  const eligibleWheelOrder = orderHistory.find(isOrderWheelEligible);
 
   const selectedReward = selectedRewardId
     ? LOYALTY.REWARDS.find((reward) => reward.id === selectedRewardId)
@@ -1956,10 +1967,7 @@ export default function HomePage() {
                               {order.status !== "confirmed" ? " (en attente)" : ""}
                             </span>
                           ) : null}
-                          {order.status === "confirmed" &&
-                          !order.wheel_spun &&
-                          wheelConfig?.enabled &&
-                          order.grand_total >= (wheelConfig?.minAmount || 0) ? (
+                          {isOrderWheelEligible(order) ? (
                             <button
                               className="button primary small order-history-wheel-btn"
                               onClick={() => openWheelForOrder(order.id)}

@@ -1,11 +1,21 @@
 import sql from "@/lib/db";
 
 async function getSettings() {
-  const rows = await sql`SELECT enabled, min_amount FROM wheel_settings WHERE id = 1`;
-  if (rows.length === 0) {
-    return { enabled: true, min_amount: 6000 };
+  try {
+    const rows = await sql`
+      SELECT enabled, min_amount, cutoff_at FROM wheel_settings WHERE id = 1
+    `;
+    if (rows.length === 0) {
+      return { enabled: true, min_amount: 6000, cutoff_at: null };
+    }
+    return rows[0];
+  } catch {
+    const rows = await sql`SELECT enabled, min_amount FROM wheel_settings WHERE id = 1`;
+    if (rows.length === 0) {
+      return { enabled: true, min_amount: 6000, cutoff_at: null };
+    }
+    return { ...rows[0], cutoff_at: null };
   }
-  return rows[0];
 }
 
 // Config publique : gains actifs (sans les poids) + reglages.
@@ -23,6 +33,7 @@ export async function GET() {
     return Response.json({
       enabled: settings.enabled,
       minAmount: settings.min_amount,
+      cutoffAt: settings.cutoff_at,
       prizes,
     });
   } catch (error) {
@@ -63,7 +74,7 @@ export async function POST(request) {
     }
 
     const orderRows = await sql`
-      SELECT id, account_phone, grand_total
+      SELECT id, account_phone, grand_total, created_at
       FROM orders
       WHERE id = ${orderId}
     `;
@@ -81,6 +92,13 @@ export async function POST(request) {
     if ((order.grand_total || 0) < settings.min_amount) {
       return Response.json(
         { error: `Montant minimum de ${settings.min_amount} F CFA non atteint.` },
+        { status: 403 },
+      );
+    }
+
+    if (settings.cutoff_at && new Date(order.created_at) < new Date(settings.cutoff_at)) {
+      return Response.json(
+        { error: "Cette commande est anterieure a la mise en place de la roue." },
         { status: 403 },
       );
     }

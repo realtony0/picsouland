@@ -14,9 +14,16 @@ export async function GET(request) {
   }
 
   try {
-    const settingsRows = await sql`
-      SELECT enabled, min_amount FROM wheel_settings WHERE id = 1
-    `;
+    let settingsRows;
+    try {
+      settingsRows = await sql`
+        SELECT enabled, min_amount, cutoff_at FROM wheel_settings WHERE id = 1
+      `;
+    } catch {
+      settingsRows = await sql`
+        SELECT enabled, min_amount FROM wheel_settings WHERE id = 1
+      `;
+    }
 
     const prizes = await sql`
       SELECT id, label, type, value, weight, active, sort_order
@@ -92,7 +99,21 @@ export async function PATCH(request) {
 
     // Mise a jour des reglages globaux.
     if (body.settings) {
-      const { enabled, minAmount } = body.settings;
+      const { enabled, minAmount, resetCutoff } = body.settings;
+
+      if (resetCutoff) {
+        const rows = await sql`
+          UPDATE wheel_settings
+          SET
+            enabled = COALESCE(${typeof enabled === "boolean" ? enabled : null}, enabled),
+            min_amount = COALESCE(${Number.isFinite(minAmount) ? Math.max(0, minAmount) : null}, min_amount),
+            cutoff_at = now()
+          WHERE id = 1
+          RETURNING enabled, min_amount, cutoff_at
+        `;
+        return Response.json({ settings: rows[0] });
+      }
+
       const rows = await sql`
         UPDATE wheel_settings
         SET

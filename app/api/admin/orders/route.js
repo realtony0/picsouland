@@ -60,7 +60,7 @@ export async function PATCH(request) {
     }
 
     const orderRows = await sql`
-      SELECT id, account_phone, points_earned, status, grand_total
+      SELECT id, account_phone, points_earned, status, grand_total, created_at
       FROM orders
       WHERE id = ${orderId}
     `;
@@ -107,11 +107,18 @@ export async function PATCH(request) {
     if (order.account_phone) {
       try {
         const wheelRows = await sql`
-          SELECT enabled, min_amount FROM wheel_settings WHERE id = 1
+          SELECT enabled, min_amount, cutoff_at FROM wheel_settings WHERE id = 1
         `;
         const wheel = wheelRows[0];
+        const afterCutoff =
+          !wheel?.cutoff_at || new Date(order.created_at) >= new Date(wheel.cutoff_at);
 
-        if (wheel && wheel.enabled && (order.grand_total || 0) >= wheel.min_amount) {
+        if (
+          wheel &&
+          wheel.enabled &&
+          afterCutoff &&
+          (order.grand_total || 0) >= wheel.min_amount
+        ) {
           await sendPushToPhone(order.account_phone, {
             title: "Commande confirmee !",
             body: "Tourne la roue Picsou pour tenter de gagner un cadeau.",

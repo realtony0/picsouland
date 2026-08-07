@@ -128,6 +128,11 @@ export async function POST(request) {
       ON CONFLICT (id) DO NOTHING
     `;
 
+    // Date a partir de laquelle une commande peut donner droit a la roue.
+    // Par defaut = maintenant, pour ne jamais rendre jouables des
+    // commandes anciennes passees avant la mise en place de la roue.
+    await sql`ALTER TABLE wheel_settings ADD COLUMN IF NOT EXISTS cutoff_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
+
     await sql`
       CREATE TABLE IF NOT EXISTS wheel_spins (
         id            SERIAL PRIMARY KEY,

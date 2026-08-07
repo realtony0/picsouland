@@ -3397,3 +3397,27 @@ img {
     animation: none;
   }
 }
+
+/* ========== Admin : date de coupure de la roue ========== */
+.wheel-cutoff-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.wheel-cutoff-box strong {
+  font-size: 0.9rem;
+}
+
+.wheel-cutoff-box p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}

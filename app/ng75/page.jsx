@@ -267,6 +267,39 @@ export default function AdminPage() {
     }
   }
 
+  async function resetWheelCutoff() {
+    const confirmed = window.confirm(
+      "Seules les commandes passees a partir de maintenant pourront " +
+        "debloquer la roue. Les commandes plus anciennes, meme confirmees, " +
+        "ne seront plus jouables. Continuer ?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/wheel", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          settings: {
+            enabled: wheelSettings.enabled,
+            minAmount: Number(wheelSettings.min_amount) || 0,
+            resetCutoff: true,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.settings) {
+        setWheelSettings((s) => ({ ...s, cutoff_at: data.settings.cutoff_at }));
+      }
+      setNotice("Seules les commandes passees a partir de maintenant sont eligibles.");
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
   // En mode simple, les probabilites sont toujours reequilibrees automatiquement :
   // l'admin n'a jamais a raisonner en pourcentages.
   async function equalizeWheelPrizes(list) {
@@ -1185,6 +1218,20 @@ export default function AdminPage() {
               value={wheelSettings.min_amount}
             />
           </label>
+        </div>
+
+        <div className="wheel-cutoff-box">
+          <div>
+            <strong>Commandes eligibles depuis</strong>
+            <p>
+              {wheelSettings.cutoff_at
+                ? new Date(wheelSettings.cutoff_at).toLocaleString("fr-FR")
+                : "Toutes les commandes confirmees (aucune limite de date)"}
+            </p>
+          </div>
+          <button className="button secondary" onClick={resetWheelCutoff} type="button">
+            Exclure les commandes anterieures a maintenant
+          </button>
         </div>
 
         {(() => {
