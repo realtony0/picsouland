@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { trackPixelEvent } from "@/lib/fbpixel";
 
 const STORAGE_KEYS = {
   ageGate: "picsouland_age_gate",
@@ -697,6 +698,13 @@ export default function HomePage() {
 
   function addToCart(product) {
     changeQuantity(product.id, 1);
+    trackPixelEvent("AddToCart", {
+      content_ids: [product.id],
+      content_name: `${product.brand} ${product.name}`,
+      content_type: "product",
+      value: getEffectivePrice(product),
+      currency: "XOF",
+    });
   }
 
   function updateCustomerField(field, value) {
@@ -847,6 +855,13 @@ export default function HomePage() {
     const orderMessage = generatedMessage;
     let createdOrderId = null;
 
+    trackPixelEvent("InitiateCheckout", {
+      content_ids: cartEntries.map((item) => item.id),
+      num_items: cartCount,
+      value: grandTotal,
+      currency: "XOF",
+    });
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -883,6 +898,12 @@ export default function HomePage() {
       }
       if (res.ok && data.order) {
         createdOrderId = data.order.id;
+        trackPixelEvent("Purchase", {
+          content_ids: cartEntries.map((item) => item.id),
+          num_items: cartCount,
+          value: grandTotal,
+          currency: "XOF",
+        });
       }
     } catch {}
 

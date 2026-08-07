@@ -1,6 +1,7 @@
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
+import MetaPixel from "./meta-pixel";
 
 const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -41,6 +42,7 @@ export default function RootLayout({ children }) {
       <body className={`${displayFont.variable} ${bodyFont.variable}`}>
         {children}
         <ServiceWorkerRegister />
+        <MetaPixel />
       </body>
     </html>
   );
