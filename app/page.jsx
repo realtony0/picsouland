@@ -469,6 +469,21 @@ export default function HomePage() {
       return;
     }
 
+    // Charge l'historique des commandes des la connexion (pas seulement a
+    // l'ouverture du compte) pour que la roue soit visible tout de suite
+    // si une commande confirmee y donne droit.
+    fetch("/api/auth/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: sessionCredentials.phone,
+        pin: sessionCredentials.pin,
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setOrderHistory(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
     // Reabonnement silencieux : si la permission a deja ete accordee lors
     // d'une session precedente, on resynchronise l'abonnement sans rien
     // demander a l'utilisateur.
@@ -558,6 +573,17 @@ export default function HomePage() {
   const cartCount = cartEntries.reduce((sum, item) => sum + item.quantity, 0);
   const deliveryPrice = getDeliveryPrice(customer.area, deliveryZones);
   const groupedDeliveryZones = groupDeliveryZones(deliveryZones);
+
+  // Commande la plus recente qui donne droit a la roue et pas encore jouee.
+  const eligibleWheelOrder =
+    wheelConfig?.enabled
+      ? orderHistory.find(
+          (order) =>
+            order.status === "confirmed" &&
+            !order.wheel_spun &&
+            order.grand_total >= (wheelConfig?.minAmount || 0),
+        )
+      : null;
 
   const selectedReward = selectedRewardId
     ? LOYALTY.REWARDS.find((reward) => reward.id === selectedRewardId)
@@ -1213,6 +1239,9 @@ export default function HomePage() {
               <span className="account-button-label">
                 {currentAccount ? `Compte: ${currentAccount.name}` : "Mon compte"}
               </span>
+              {eligibleWheelOrder ? (
+                <span className="account-wheel-dot" title="Une roue t'attend !" />
+              ) : null}
             </button>
 
             <button
@@ -1273,6 +1302,9 @@ export default function HomePage() {
                 {currentAccount
                   ? `Mon compte - ${currentAccount.name}`
                   : "Mon compte / Se connecter"}
+                {eligibleWheelOrder ? (
+                  <span className="account-wheel-dot" title="Une roue t'attend !" />
+                ) : null}
               </button>
             </div>
           ) : null}
@@ -1793,6 +1825,22 @@ export default function HomePage() {
                   <strong>{currentAccount.name}</strong>
                   <span>{formatPhone(currentAccount.phone)}</span>
                 </div>
+
+                {eligibleWheelOrder ? (
+                  <button
+                    className="wheel-cta-banner"
+                    onClick={() => openWheelForOrder(eligibleWheelOrder.id)}
+                    type="button"
+                  >
+                    <span className="wheel-cta-emoji" aria-hidden="true">
+                      🎡
+                    </span>
+                    <span className="wheel-cta-text">
+                      <strong>Ta commande #{eligibleWheelOrder.id} te donne droit a la roue !</strong>
+                      <small>Tape ici pour tenter de gagner un cadeau</small>
+                    </span>
+                  </button>
+                ) : null}
 
                 {(() => {
                   const tier = getLoyaltyTier(currentAccount.totalEarned);
