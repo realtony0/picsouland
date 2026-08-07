@@ -156,6 +156,46 @@ export async function POST(request) {
     }
 
     await sql`
+      CREATE TABLE IF NOT EXISTS delivery_zones (
+        id         SERIAL PRIMARY KEY,
+        area       TEXT UNIQUE NOT NULL,
+        price      INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    // Zones par defaut (uniquement si la table est vide)
+    const zoneCount = await sql`SELECT COUNT(*)::int AS n FROM delivery_zones`;
+    if (zoneCount[0].n === 0) {
+      await sql`
+        INSERT INTO delivery_zones (area, price, sort_order) VALUES
+          ('Ngor', 1000, 1),
+          ('Virage', 1000, 2),
+          ('Aeroport LSS', 1000, 3),
+          ('Mamelles', 1000, 4),
+          ('Ouakam', 1000, 5),
+          ('Mermoz', 1500, 6),
+          ('Sacre-Coeur', 1500, 7),
+          ('Point E', 1500, 8),
+          ('Fann', 1500, 9),
+          ('Grand Dakar', 1500, 10),
+          ('HLM', 1500, 11),
+          ('Liberte 1', 1500, 12),
+          ('Liberte 2', 1500, 13),
+          ('Liberte 3', 1500, 14),
+          ('Liberte 4', 1500, 15),
+          ('Liberte 5', 1500, 16),
+          ('Liberte 6', 1500, 17),
+          ('Plateau', 2000, 18),
+          ('Hann', 2000, 19),
+          ('Bel Air', 2000, 20),
+          ('Pikine', 2000, 21),
+          ('Guediawaye', 2000, 22)
+      `;
+    }
+
+    await sql`
       INSERT INTO products (id, name, brand, price, image) VALUES
         ('rodman-allstar', 'All Star', 'Rodman', 8000, '/images/rodman-allstar.jpeg'),
         ('rodman-buzzerbeater', 'Buzzer Beater', 'Rodman', 8000, '/images/rodman-buzzerbeater.webp'),

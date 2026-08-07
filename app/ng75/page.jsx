@@ -60,6 +60,8 @@ export default function AdminPage() {
     value: "",
     weight: "",
   });
+  const [deliveryZones, setDeliveryZones] = useState([]);
+  const [newZone, setNewZone] = useState({ area: "", price: "" });
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -87,12 +89,13 @@ export default function AdminPage() {
 
   async function refreshData() {
     try {
-      const [accRes, ordRes, prodRes, promoRes, wheelRes] = await Promise.all([
+      const [accRes, ordRes, prodRes, promoRes, wheelRes, zonesRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
         fetch("/api/admin/orders", { headers: apiHeaders() }),
         fetch("/api/products"),
         fetch("/api/admin/promotions", { headers: apiHeaders() }),
         fetch("/api/admin/wheel", { headers: apiHeaders() }),
+        fetch("/api/delivery-zones"),
       ]);
 
       if (accRes.ok) {
@@ -126,8 +129,75 @@ export default function AdminPage() {
         setWheelPrizes(wheelData.prizes || []);
         setWheelSpins(wheelData.spins || []);
       }
+
+      if (zonesRes.ok) {
+        setDeliveryZones(await zonesRes.json());
+      }
     } catch {
       setNotice("Erreur de chargement des donnees.");
+    }
+  }
+
+  async function addDeliveryZone() {
+    if (!newZone.area.trim() || newZone.price === "") {
+      setNotice("Nom de zone et prix requis.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/delivery-zones", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          area: newZone.area.trim(),
+          price: Number(newZone.price) || 0,
+          sortOrder: deliveryZones.length + 1,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice("Erreur : " + (data.error || "ajout impossible"));
+        return;
+      }
+      setDeliveryZones((prev) => [...prev, data]);
+      setNewZone({ area: "", price: "" });
+      setNotice(`Zone "${data.area}" ajoutee.`);
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function updateDeliveryZone(id, patch) {
+    setDeliveryZones((prev) =>
+      prev.map((z) => (z.id === id ? { ...z, ...patch } : z)),
+    );
+    try {
+      const res = await fetch("/api/admin/delivery-zones", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id, ...patch }),
+      });
+      if (!res.ok) {
+        setNotice("Erreur : zone non enregistree.");
+      }
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function deleteDeliveryZone(id) {
+    if (!window.confirm("Supprimer cette zone de livraison ?")) {
+      return;
+    }
+    try {
+      await fetch("/api/admin/delivery-zones", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      setDeliveryZones((prev) => prev.filter((z) => z.id !== id));
+      setNotice("Zone supprimee.");
+    } catch {
+      setNotice("Erreur reseau.");
     }
   }
 
@@ -732,6 +802,13 @@ export default function AdminPage() {
         >
           Roue
         </button>
+        <button
+          className={`admin-tab ${activeTab === "delivery" ? "active" : ""}`}
+          onClick={() => setActiveTab("delivery")}
+          type="button"
+        >
+          Livraison
+        </button>
       </nav>
 
       {activeTab === "dashboard" ? (
@@ -1124,6 +1201,122 @@ export default function AdminPage() {
           ) : (
             <p className="admin-empty">Aucun tour de roue pour le moment.</p>
           )}
+        </div>
+      </section>
+      ) : null}
+
+      {activeTab === "delivery" ? (
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>Zones de livraison</h2>
+            <p className="admin-section-copy">
+              Chaque zone a un prix de livraison. Les clients les retrouvent
+              groupees par prix dans le formulaire de commande.
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button className="button secondary" onClick={refreshData} type="button">
+              Rafraichir
+            </button>
+          </div>
+        </div>
+
+        {deliveryZones.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th>Prix de livraison</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveryZones
+                  .slice()
+                  .sort((a, b) => a.price - b.price || a.area.localeCompare(b.area))
+                  .map((zone) => (
+                    <tr key={zone.id}>
+                      <td data-label="Zone">
+                        <input
+                          className="wheel-cell-input"
+                          onChange={(event) =>
+                            setDeliveryZones((prev) =>
+                              prev.map((z) =>
+                                z.id === zone.id
+                                  ? { ...z, area: event.target.value }
+                                  : z,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateDeliveryZone(zone.id, { area: event.target.value })
+                          }
+                          value={zone.area}
+                        />
+                      </td>
+                      <td data-label="Prix de livraison">
+                        <input
+                          className="wheel-cell-input wheel-cell-num"
+                          onChange={(event) =>
+                            setDeliveryZones((prev) =>
+                              prev.map((z) =>
+                                z.id === zone.id
+                                  ? { ...z, price: event.target.value }
+                                  : z,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateDeliveryZone(zone.id, {
+                              price: Number(event.target.value) || 0,
+                            })
+                          }
+                          type="number"
+                          value={zone.price}
+                        />
+                      </td>
+                      <td data-label="Actions">
+                        <button
+                          className="button danger small"
+                          onClick={() => deleteDeliveryZone(zone.id)}
+                          type="button"
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="admin-empty">Aucune zone de livraison configuree.</p>
+        )}
+
+        <div className="wheel-admin-add">
+          <h3>Ajouter une zone</h3>
+          <div className="wheel-admin-add-row">
+            <input
+              onChange={(event) =>
+                setNewZone((z) => ({ ...z, area: event.target.value }))
+              }
+              placeholder="Nom de la zone (ex : Ouakam)"
+              value={newZone.area}
+            />
+            <input
+              onChange={(event) =>
+                setNewZone((z) => ({ ...z, price: event.target.value }))
+              }
+              placeholder="Prix (F CFA)"
+              type="number"
+              value={newZone.price}
+            />
+            <button className="button primary" onClick={addDeliveryZone} type="button">
+              Ajouter
+            </button>
+          </div>
         </div>
       </section>
       ) : null}

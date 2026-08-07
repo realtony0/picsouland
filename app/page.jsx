@@ -33,34 +33,6 @@ const heroProducts = [
   },
 ];
 
-const deliveryZones = [
-  {
-    price: 1000,
-    areas: ["Ngor", "Virage", "Aeroport LSS", "Mamelles", "Ouakam"],
-  },
-  {
-    price: 1500,
-    areas: [
-      "Mermoz",
-      "Sacre-Coeur",
-      "Point E",
-      "Fann",
-      "Grand Dakar",
-      "HLM",
-      "Liberte 1",
-      "Liberte 2",
-      "Liberte 3",
-      "Liberte 4",
-      "Liberte 5",
-      "Liberte 6",
-    ],
-  },
-  {
-    price: 2000,
-    areas: ["Plateau", "Hann", "Bel Air", "Pikine", "Guediawaye"],
-  },
-];
-
 const OTHER_DELIVERY_AREA = "Autre zone (a confirmer)";
 
 const LOYALTY = {
@@ -160,18 +132,28 @@ function normalizeDbAccount(row) {
   };
 }
 
-function getDeliveryPrice(area) {
-  if (!area) {
+function getDeliveryPrice(area, zones) {
+  if (!area || !zones) {
     return 0;
   }
 
-  for (const zone of deliveryZones) {
-    if (zone.areas.includes(area)) {
-      return zone.price;
+  const zone = zones.find((z) => z.area === area);
+  return zone ? zone.price : 0;
+}
+
+function groupDeliveryZones(zones) {
+  const groups = new Map();
+
+  for (const zone of zones) {
+    if (!groups.has(zone.price)) {
+      groups.set(zone.price, []);
     }
+    groups.get(zone.price).push(zone.area);
   }
 
-  return 0;
+  return Array.from(groups.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([price, areas]) => ({ price, areas }));
 }
 
 const formatter = new Intl.NumberFormat("fr-FR");
@@ -299,6 +281,7 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
 export default function HomePage() {
   const [products, setProducts] = useState([]);
   const [promotions, setPromotions] = useState([]);
+  const [deliveryZones, setDeliveryZones] = useState([]);
   const [ageGateStatus, setAgeGateStatus] = useState("pending");
   const [filter, setFilter] = useState("all");
   const [cart, setCart] = useState({});
@@ -358,6 +341,11 @@ export default function HomePage() {
           setWheelConfig(data);
         }
       })
+      .catch(() => {});
+
+    fetch("/api/delivery-zones")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setDeliveryZones(Array.isArray(data) ? data : []))
       .catch(() => {});
 
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
@@ -502,7 +490,8 @@ export default function HomePage() {
 
   const cartTotal = cartEntries.reduce((sum, item) => sum + item.subtotal, 0);
   const cartCount = cartEntries.reduce((sum, item) => sum + item.quantity, 0);
-  const deliveryPrice = getDeliveryPrice(customer.area);
+  const deliveryPrice = getDeliveryPrice(customer.area, deliveryZones);
+  const groupedDeliveryZones = groupDeliveryZones(deliveryZones);
 
   const selectedReward = selectedRewardId
     ? LOYALTY.REWARDS.find((reward) => reward.id === selectedRewardId)
@@ -1550,7 +1539,7 @@ export default function HomePage() {
                   value={customer.area}
                 >
                   <option value="">Choisis ta zone</option>
-                  {deliveryZones.map((zone) => (
+                  {groupedDeliveryZones.map((zone) => (
                     <optgroup
                       key={zone.price}
                       label={`Livraison ${formatPrice(zone.price)}`}
