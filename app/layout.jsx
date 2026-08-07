@@ -30,6 +30,9 @@ export const metadata = {
     title: "PicsouLand",
     statusBarStyle: "default",
   },
+  other: {
+    "facebook-domain-verification": "h3s6y3qrzdqnmluci3ljkjzt2bkexn",
+  },
 };
 
 export const viewport = {
