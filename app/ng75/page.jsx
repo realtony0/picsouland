@@ -62,6 +62,7 @@ export default function AdminPage() {
   });
   const [deliveryZones, setDeliveryZones] = useState([]);
   const [newZone, setNewZone] = useState({ area: "", price: "" });
+  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -135,6 +136,29 @@ export default function AdminPage() {
       }
     } catch {
       setNotice("Erreur de chargement des donnees.");
+    }
+  }
+
+  async function runMigration() {
+    setMigrating(true);
+    setNotice("Migration en cours...");
+    try {
+      const res = await fetch("/api/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: adminPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice("Erreur migration : " + (data.error || "echec"));
+        return;
+      }
+      setNotice("Migration terminee. Base de donnees a jour.");
+      await refreshData();
+    } catch {
+      setNotice("Erreur reseau pendant la migration.");
+    } finally {
+      setMigrating(false);
     }
   }
 
@@ -849,6 +873,31 @@ export default function AdminPage() {
           <strong className="stat-value">{orders.length}</strong>
           <span className="stat-hint">enregistrees dans la base</span>
         </article>
+      </section>
+      ) : null}
+
+      {activeTab === "dashboard" ? (
+      <section className="admin-section admin-maintenance">
+        <div className="admin-section-head">
+          <div>
+            <h2>Base de donnees</h2>
+            <p className="admin-section-copy">
+              Cree ou met a jour les tables necessaires (roue, zones de
+              livraison, etc.) sans rien casser. A relancer apres chaque
+              nouvelle fonctionnalite qui touche la base.
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button
+              className="button primary"
+              disabled={migrating}
+              onClick={runMigration}
+              type="button"
+            >
+              {migrating ? "Migration en cours..." : "Lancer la migration"}
+            </button>
+          </div>
+        </div>
       </section>
       ) : null}
 

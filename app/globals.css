@@ -3106,3 +3106,9 @@ img {
 .wheel-admin-spins {
   margin-top: 28px;
 }
+
+/* ========== Admin : maintenance base de donnees ========== */
+.admin-maintenance {
+  border: 1px dashed var(--line-strong);
+  background: var(--bg);
+}
