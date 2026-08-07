@@ -154,6 +154,19 @@ export async function POST(request) {
     }
 
     await sql`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id         SERIAL PRIMARY KEY,
+        phone      VARCHAR(20) NOT NULL REFERENCES accounts(phone) ON DELETE CASCADE,
+        endpoint   TEXT UNIQUE NOT NULL,
+        p256dh     TEXT NOT NULL,
+        auth       TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_phone ON push_subscriptions(phone)`;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS delivery_zones (
         id         SERIAL PRIMARY KEY,
         area       TEXT UNIQUE NOT NULL,

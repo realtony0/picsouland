@@ -1,4 +1,5 @@
 import sql from "@/lib/db";
+import { sendPushToPhone } from "@/lib/push";
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 
@@ -59,7 +60,7 @@ export async function PATCH(request) {
     }
 
     const orderRows = await sql`
-      SELECT id, account_phone, points_earned, status
+      SELECT id, account_phone, points_earned, status, grand_total
       FROM orders
       WHERE id = ${orderId}
     `;
@@ -98,6 +99,27 @@ export async function PATCH(request) {
 
       if (accRows.length > 0) {
         updatedAccount = accRows[0];
+      }
+    }
+
+    // Notifie le client qu'il peut tourner la roue, si la commande est
+    // eligible. Ne doit jamais faire echouer la confirmation de commande.
+    if (order.account_phone) {
+      try {
+        const wheelRows = await sql`
+          SELECT enabled, min_amount FROM wheel_settings WHERE id = 1
+        `;
+        const wheel = wheelRows[0];
+
+        if (wheel && wheel.enabled && (order.grand_total || 0) >= wheel.min_amount) {
+          await sendPushToPhone(order.account_phone, {
+            title: "Commande confirmee !",
+            body: "Tourne la roue Picsou pour tenter de gagner un cadeau.",
+            url: `/?wheel=${orderId}`,
+          });
+        }
+      } catch {
+        // Table pas encore migree ou erreur d'envoi : on ignore.
       }
     }
 

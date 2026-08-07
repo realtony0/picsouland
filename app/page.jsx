@@ -12,6 +12,23 @@ const STORAGE_KEYS = {
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
 
+const VAPID_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  "BBwaEFQoP3088ylfjxbdsd6mfFeXcG-wwIwcWLWcaYhytBYzj57D4S6ZnKyYJDdYYmv5IQhTgTlK1_RtWC91gTo";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
+}
+
 const heroProducts = [
   {
     brand: "Rodman",
@@ -322,6 +339,8 @@ export default function HomePage() {
   const [wheelAngle, setWheelAngle] = useState(0);
   const [wheelResult, setWheelResult] = useState(null);
   const [wheelError, setWheelError] = useState("");
+  const [notifPermission, setNotifPermission] = useState("unsupported");
+  const [notifBusy, setNotifBusy] = useState(false);
 
   useEffect(() => {
     fetch("/api/products")
@@ -436,6 +455,53 @@ export default function HomePage() {
 
     return () => window.clearTimeout(timer);
   }, [ageGateStatus, deviceKind, isStandalone]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return;
+    }
+
+    setNotifPermission(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (!currentAccount || !sessionCredentials) {
+      return;
+    }
+
+    // Reabonnement silencieux : si la permission a deja ete accordee lors
+    // d'une session precedente, on resynchronise l'abonnement sans rien
+    // demander a l'utilisateur.
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        subscribeToPush(sessionCredentials);
+      }
+    }
+
+    // Ouverture de la roue depuis une notification (?wheel=<id-commande>).
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const wheelParam = params.get("wheel");
+
+    if (wheelParam) {
+      const orderId = Number(wheelParam);
+
+      if (Number.isFinite(orderId)) {
+        openWheelForOrder(orderId);
+      }
+
+      params.delete("wheel");
+      const rest = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (rest ? `?${rest}` : ""),
+      );
+    }
+  }, [currentAccount, sessionCredentials]);
 
   useEffect(() => {
     if (!currentAccount) {
@@ -742,7 +808,6 @@ export default function HomePage() {
 
     const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
     const orderMessage = generatedMessage;
-    const orderTotal = grandTotal;
     let createdOrderId = null;
 
     try {
@@ -786,35 +851,89 @@ export default function HomePage() {
 
     setSelectedRewardId("");
 
+    // La roue ne se joue plus a la commande : elle se debloque quand la
+    // boutique confirme la commande (notification push), ou depuis
+    // "Mes commandes" une fois la commande confirmee.
+    if (createdOrderId && sessionCredentials) {
+      subscribeToPush(sessionCredentials);
+    }
+
     const cleanNumber = formatWhatsappNumber(whatsappNumber);
     const whatsappUrl = cleanNumber
       ? `https://wa.me/${cleanNumber}?text=${encodeURIComponent(orderMessage)}`
       : "";
 
-    // Roue de la fortune : si eligible, on l'ouvre avant WhatsApp.
-    const wheelEligible =
-      wheelConfig &&
-      wheelConfig.enabled &&
-      Array.isArray(wheelConfig.prizes) &&
-      wheelConfig.prizes.length > 0 &&
-      createdOrderId &&
-      currentAccount &&
-      orderTotal >= (wheelConfig.minAmount || 0);
+    if (whatsappUrl) {
+      window.location.href = whatsappUrl;
+    }
+  }
 
-    if (wheelEligible) {
-      setWheelOrderId(createdOrderId);
-      setWheelPendingUrl(whatsappUrl);
-      setWheelResult(null);
-      setWheelError("");
-      setWheelAngle(0);
-      setWheelSpinning(false);
-      setIsCartOpen(false);
-      setWheelOpen(true);
+  function openWheelForOrder(orderId) {
+    setWheelOrderId(orderId);
+    setWheelPendingUrl("");
+    setWheelResult(null);
+    setWheelError("");
+    setWheelAngle(0);
+    setWheelSpinning(false);
+    setIsAccountOpen(false);
+    setIsCartOpen(false);
+    setWheelOpen(true);
+  }
+
+  async function subscribeToPush(creds) {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      !creds?.phone ||
+      !creds?.pin
+    ) {
       return;
     }
 
-    if (whatsappUrl) {
-      window.location.href = whatsappUrl;
+    if (Notification.permission === "denied") {
+      setNotifPermission("denied");
+      return;
+    }
+
+    setNotifBusy(true);
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      let permission = Notification.permission;
+
+      if (permission === "default") {
+        permission = await Notification.requestPermission();
+      }
+
+      setNotifPermission(permission);
+
+      if (permission !== "granted") {
+        return;
+      }
+
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: creds.phone,
+          pin: creds.pin,
+          subscription: subscription.toJSON(),
+        }),
+      });
+    } catch {
+      // Navigateur non compatible ou permission refusee : on ignore.
+    } finally {
+      setNotifBusy(false);
     }
   }
 
@@ -880,8 +999,24 @@ export default function HomePage() {
     setWheelOrderId(null);
     setWheelResult(null);
     setWheelPendingUrl("");
+
     if (url) {
       window.location.href = url;
+      return;
+    }
+
+    if (sessionCredentials?.phone && sessionCredentials?.pin) {
+      fetch("/api/auth/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: sessionCredentials.phone,
+          pin: sessionCredentials.pin,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => setOrderHistory(Array.isArray(data) ? data : []))
+        .catch(() => {});
     }
   }
 
@@ -1726,6 +1861,20 @@ export default function HomePage() {
                   );
                 })()}
 
+                {notifPermission === "default" ? (
+                  <button
+                    className="button secondary full notif-cta"
+                    disabled={notifBusy}
+                    onClick={() => subscribeToPush(sessionCredentials)}
+                    type="button"
+                  >
+                    🔔{" "}
+                    {notifBusy
+                      ? "Activation..."
+                      : "Activer les notifications (tourne la roue des que ta commande est confirmee)"}
+                  </button>
+                ) : null}
+
                 {orderHistory.length > 0 ? (
                   <div className="order-history">
                     <span className="order-history-title">Mes commandes</span>
@@ -1758,6 +1907,18 @@ export default function HomePage() {
                               +{order.points_earned} pts
                               {order.status !== "confirmed" ? " (en attente)" : ""}
                             </span>
+                          ) : null}
+                          {order.status === "confirmed" &&
+                          !order.wheel_spun &&
+                          wheelConfig?.enabled &&
+                          order.grand_total >= (wheelConfig?.minAmount || 0) ? (
+                            <button
+                              className="button primary small order-history-wheel-btn"
+                              onClick={() => openWheelForOrder(order.id)}
+                              type="button"
+                            >
+                              🎡 Tourner la roue
+                            </button>
                           ) : null}
                         </article>
                       ))}

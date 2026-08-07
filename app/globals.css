@@ -1906,6 +1906,20 @@ img {
   font-weight: 600;
 }
 
+.order-history-wheel-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
+.notif-cta {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
 .status-chip.status-confirmed {
   background: rgba(31, 122, 107, 0.16);
   color: var(--teal);
