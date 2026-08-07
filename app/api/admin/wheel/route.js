@@ -57,7 +57,7 @@ export async function POST(request) {
     }
 
     if (!VALID_TYPES.includes(type)) {
-      return Response.json({ error: "Type de lot invalide." }, { status: 400 });
+      return Response.json({ error: "Type de gain invalide." }, { status: 400 });
     }
 
     const rows = await sql`
@@ -104,15 +104,15 @@ export async function PATCH(request) {
       return Response.json({ settings: rows[0] });
     }
 
-    // Mise a jour d'un lot.
+    // Mise a jour d'un gain.
     const { id, label, type, value, weight, active, sortOrder } = body;
 
     if (!id) {
-      return Response.json({ error: "Identifiant du lot requis." }, { status: 400 });
+      return Response.json({ error: "Identifiant du gain requis." }, { status: 400 });
     }
 
     if (type && !VALID_TYPES.includes(type)) {
-      return Response.json({ error: "Type de lot invalide." }, { status: 400 });
+      return Response.json({ error: "Type de gain invalide." }, { status: 400 });
     }
 
     const rows = await sql`
@@ -129,7 +129,7 @@ export async function PATCH(request) {
     `;
 
     if (rows.length === 0) {
-      return Response.json({ error: "Lot introuvable." }, { status: 404 });
+      return Response.json({ error: "Gain introuvable." }, { status: 404 });
     }
 
     return Response.json(rows[0]);
@@ -150,13 +150,13 @@ export async function DELETE(request) {
     const { id } = await request.json();
 
     if (!id) {
-      return Response.json({ error: "Identifiant du lot requis." }, { status: 400 });
+      return Response.json({ error: "Identifiant du gain requis." }, { status: 400 });
     }
 
     const rows = await sql`DELETE FROM wheel_prizes WHERE id = ${id} RETURNING id`;
 
     if (rows.length === 0) {
-      return Response.json({ error: "Lot introuvable." }, { status: 404 });
+      return Response.json({ error: "Gain introuvable." }, { status: 404 });
     }
 
     return Response.json({ ok: true });

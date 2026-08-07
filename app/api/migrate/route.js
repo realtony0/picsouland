@@ -141,7 +141,7 @@ export async function POST(request) {
       )
     `;
 
-    // Lots par defaut (uniquement si la table est vide)
+    // Gains par defaut (uniquement si la table est vide)
     const prizeCount = await sql`SELECT COUNT(*)::int AS n FROM wheel_prizes`;
     if (prizeCount[0].n === 0) {
       await sql`

@@ -8,7 +8,7 @@ async function getSettings() {
   return rows[0];
 }
 
-// Config publique : lots actifs (sans les poids) + reglages.
+// Config publique : gains actifs (sans les poids) + reglages.
 export async function GET() {
   try {
     const settings = await getSettings();
@@ -104,7 +104,7 @@ export async function POST(request) {
     `;
 
     if (activePrizes.length === 0) {
-      return Response.json({ error: "Aucun lot disponible." }, { status: 503 });
+      return Response.json({ error: "Aucun gain disponible." }, { status: 503 });
     }
 
     // Tirage pondere.

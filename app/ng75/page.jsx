@@ -285,7 +285,7 @@ export default function AdminPage() {
 
   async function addWheelPrize() {
     if (!newWheelPrize.label.trim()) {
-      setNotice("Donne un nom au lot.");
+      setNotice("Donne un nom au gain.");
       return;
     }
     try {
@@ -313,7 +313,7 @@ export default function AdminPage() {
       if (!wheelAdvanced) {
         await equalizeWheelPrizes(next);
       }
-      setNotice(`Lot "${data.label}" ajoute.`);
+      setNotice(`Gain "${data.label}" ajoute.`);
     } catch {
       setNotice("Erreur reseau.");
     }
@@ -330,7 +330,7 @@ export default function AdminPage() {
         body: JSON.stringify({ id, ...patch }),
       });
     } catch {
-      setNotice("Erreur : lot non enregistre.");
+      setNotice("Erreur : gain non enregistre.");
     }
   }
 
@@ -346,7 +346,7 @@ export default function AdminPage() {
   }
 
   async function deleteWheelPrize(id) {
-    if (!window.confirm("Supprimer ce lot ?")) {
+    if (!window.confirm("Supprimer ce gain ?")) {
       return;
     }
     try {
@@ -361,7 +361,7 @@ export default function AdminPage() {
       if (!wheelAdvanced) {
         await equalizeWheelPrizes(next);
       }
-      setNotice("Lot supprime.");
+      setNotice("Gain supprime.");
     } catch {
       setNotice("Erreur reseau.");
     }
@@ -1057,7 +1057,7 @@ export default function AdminPage() {
               Apres chaque commande eligible, le client peut tourner la roue.
               {wheelAdvanced
                 ? " Le resultat est tire au sort selon les probabilites reglees ci-dessous."
-                : " Les chances se repartissent automatiquement entre les lots actifs, sans calcul de ta part."}
+                : " Les chances se repartissent automatiquement entre les gains actifs, sans calcul de ta part."}
             </p>
           </div>
           <div className="admin-section-actions">
@@ -1132,7 +1132,7 @@ export default function AdminPage() {
                 <div className={`wheel-total-banner ${totalOk ? "ok" : "warn"}`}>
                   <span>
                     {activePrizes.length === 0
-                      ? "Aucun lot actif : la roue ne peut pas tourner."
+                      ? "Aucun gain actif : la roue ne peut pas tourner."
                       : totalOk
                         ? `Total des probabilites actives : 100% ✓`
                         : `Total des probabilites actives : ${totalWeight}% (devrait faire 100%)`}
@@ -1147,7 +1147,7 @@ export default function AdminPage() {
                 </div>
               ) : activePrizes.length === 0 ? (
                 <div className="wheel-total-banner warn">
-                  <span>Aucun lot actif : la roue ne peut pas tourner.</span>
+                  <span>Aucun gain actif : la roue ne peut pas tourner.</span>
                 </div>
               ) : null}
 
@@ -1182,7 +1182,7 @@ export default function AdminPage() {
                           onBlur={(event) =>
                             updateWheelPrize(prize.id, { label: event.target.value })
                           }
-                          placeholder="Nom du lot"
+                          placeholder="Nom du gain"
                           value={prize.label}
                         />
                         <label className="wheel-admin-switch wheel-prize-active">
@@ -1198,7 +1198,7 @@ export default function AdminPage() {
                         <button
                           className="wheel-prize-delete"
                           onClick={() => deleteWheelPrize(prize.id)}
-                          title="Supprimer ce lot"
+                          title="Supprimer ce gain"
                           type="button"
                         >
                           ✕
@@ -1289,13 +1289,13 @@ export default function AdminPage() {
         })()}
 
         <div className="wheel-admin-add">
-          <h3>Ajouter un lot</h3>
+          <h3>Ajouter un gain</h3>
           <div className="wheel-admin-add-row">
             <input
               onChange={(event) =>
                 setNewWheelPrize((p) => ({ ...p, label: event.target.value }))
               }
-              placeholder="Nom du lot (ex : Un paquet offert)"
+              placeholder="Nom du gain (ex : Un paquet offert)"
               value={newWheelPrize.label}
             />
             <select
@@ -1340,8 +1340,8 @@ export default function AdminPage() {
           </div>
           <p className="admin-section-copy">
             {wheelAdvanced
-              ? "Astuce : apres avoir ajoute ou coupe un lot, clique sur « Repartir equitablement » pour que les probabilites retombent automatiquement sur 100%."
-              : "En mode simple, les chances de chaque lot actif se rajustent automatiquement des que tu ajoutes, coupes ou supprimes un lot."}
+              ? "Astuce : apres avoir ajoute ou coupe un gain, clique sur « Repartir equitablement » pour que les probabilites retombent automatiquement sur 100%."
+              : "En mode simple, les chances de chaque gain actif se rajustent automatiquement des que tu ajoutes, coupes ou supprimes un gain."}
           </p>
         </div>
 
