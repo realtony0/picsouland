@@ -1,8 +1,13 @@
 import { put } from "@vercel/blob";
+import { SERVICE_LOCKED, serviceLockResponse } from "@/lib/service-lock";
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 
 export async function POST(request) {
+  if (SERVICE_LOCKED) {
+    return serviceLockResponse();
+  }
+
   if (request.headers.get("x-admin-pin") !== ADMIN_PIN) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }

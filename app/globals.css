@@ -2300,6 +2300,29 @@ img {
   }
 }
 
+.admin-blocked {
+  background: rgba(200, 30, 30, 0.08);
+  border: 1px solid rgba(200, 30, 30, 0.35);
+  color: #a01818;
+  padding: 16px 18px;
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.admin-blocked-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+}
+
+.admin-blocked-line {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .admin-notice {
   background: rgba(13, 118, 102, 0.12);
   color: var(--teal);

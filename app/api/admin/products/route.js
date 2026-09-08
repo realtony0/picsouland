@@ -1,4 +1,5 @@
 import sql from "@/lib/db";
+import { SERVICE_LOCKED, serviceLockResponse } from "@/lib/service-lock";
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 
@@ -7,6 +8,10 @@ function checkAdmin(request) {
 }
 
 export async function POST(request) {
+  if (SERVICE_LOCKED) {
+    return serviceLockResponse();
+  }
+
   if (!checkAdmin(request)) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }
@@ -48,6 +53,10 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
+  if (SERVICE_LOCKED) {
+    return serviceLockResponse();
+  }
+
   if (!checkAdmin(request)) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }
@@ -108,6 +117,10 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
+  if (SERVICE_LOCKED) {
+    return serviceLockResponse();
+  }
+
   if (!checkAdmin(request)) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }

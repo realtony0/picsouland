@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  SERVICE_LOCKED,
+  SERVICE_LOCK_DETAIL,
+  SERVICE_LOCK_LINES,
+  SERVICE_LOCK_TITLE,
+} from "@/lib/service-lock";
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 const ADMIN_SESSION_KEY = "picsouland_admin_session";
@@ -37,6 +43,7 @@ export default function AdminPage() {
     endsAt: "",
   });
   const [notice, setNotice] = useState("");
+  const [blockedNotice, setBlockedNotice] = useState(false);
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [newProduct, setNewProduct] = useState({
@@ -70,6 +77,17 @@ export default function AdminPage() {
       "Content-Type": "application/json",
       "x-admin-pin": adminPin,
     };
+  }
+
+  function blockOperation() {
+    setNotice("");
+    setBlockedNotice(true);
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    return true;
   }
 
   async function refreshData() {
@@ -132,6 +150,10 @@ export default function AdminPage() {
   }
 
   async function deleteAccount(phone) {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     const confirmed = window.confirm(
       `Supprimer le compte ${formatPhone(phone)} ? Cette action est irreversible.`,
     );
@@ -155,6 +177,10 @@ export default function AdminPage() {
   }
 
   async function adjustPoints(phone) {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     const account = accounts.find((entry) => entry.phone === phone);
 
     if (!account) {
@@ -215,6 +241,10 @@ export default function AdminPage() {
   }
 
   async function uploadImage(file) {
+    if (SERVICE_LOCKED) {
+      throw new Error(SERVICE_LOCK_DETAIL);
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -235,6 +265,10 @@ export default function AdminPage() {
 
   async function addProduct(event) {
     event.preventDefault();
+
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
 
     if (!newProduct.name.trim() || !newProduct.brand.trim() || !newProduct.price) {
       setNotice("Nom, marque et prix requis pour ajouter un produit.");
@@ -288,6 +322,10 @@ export default function AdminPage() {
   async function addPromo(event) {
     event.preventDefault();
 
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     if (!newPromo.label || !newPromo.discountPercent || !newPromo.endsAt) {
       setNotice("Nom, pourcentage et date de fin requis.");
       return;
@@ -321,6 +359,10 @@ export default function AdminPage() {
   }
 
   async function deletePromo(id) {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     try {
       await fetch("/api/admin/promotions", {
         method: "DELETE",
@@ -336,6 +378,10 @@ export default function AdminPage() {
   }
 
   async function toggleStock(id, currentStock) {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     try {
       const res = await fetch("/api/admin/products", {
         method: "PATCH",
@@ -355,6 +401,10 @@ export default function AdminPage() {
   }
 
   async function deleteProduct(id) {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     const product = products.find((p) => p.id === id);
     const confirmed = window.confirm(
       `Supprimer le produit "${product?.name || id}" ? Cette action est irreversible.`,
@@ -389,6 +439,10 @@ export default function AdminPage() {
   }
 
   async function saveEditProduct() {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     if (!editingProduct) {
       return;
     }
@@ -434,6 +488,10 @@ export default function AdminPage() {
   }
 
   async function confirmOrder(orderId) {
+    if (SERVICE_LOCKED) {
+      return blockOperation();
+    }
+
     try {
       const res = await fetch("/api/admin/orders", {
         method: "PATCH",
@@ -562,6 +620,17 @@ export default function AdminPage() {
           </button>
         </div>
       </header>
+
+      {blockedNotice ? (
+        <div className="admin-blocked" role="alert">
+          <p className="admin-blocked-title">{SERVICE_LOCK_TITLE}</p>
+          {SERVICE_LOCK_LINES.map((line) => (
+            <p className="admin-blocked-line" key={line}>
+              {line}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
       {notice ? <p className="admin-notice">{notice}</p> : null}
 
