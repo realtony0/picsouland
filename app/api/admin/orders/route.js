@@ -1,4 +1,5 @@
 import sql from "@/lib/db";
+import { DATABASE_OUTAGE, databaseOutageResponse } from "@/lib/db-status";
 
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 
@@ -7,6 +8,10 @@ function checkAdmin(request) {
 }
 
 export async function GET(request) {
+  if (DATABASE_OUTAGE) {
+    return databaseOutageResponse();
+  }
+
   if (!checkAdmin(request)) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }
@@ -44,6 +49,10 @@ export async function GET(request) {
 }
 
 export async function PATCH(request) {
+  if (DATABASE_OUTAGE) {
+    return databaseOutageResponse();
+  }
+
   if (!checkAdmin(request)) {
     return Response.json({ error: "Non autorise" }, { status: 401 });
   }

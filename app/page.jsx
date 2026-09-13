@@ -15,7 +15,7 @@ const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636"
 const CATALOGUE_ERROR_FALLBACK = {
   error: "Egress quota exceeded",
   detail:
-    "The database has reached its limit: this project has exceeded its egress quota. The catalogue is temporarily unavailable.",
+    "The database has reached its limit: this project has exceeded its egress quota. Data is temporarily unavailable until the quota resets.",
   code: "EGRESS_QUOTA_EXCEEDED",
 };
 

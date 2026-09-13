@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { DATABASE_OUTAGE, DATABASE_OUTAGE_PAYLOAD } from "@/lib/db-status";
+
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 const ADMIN_SESSION_KEY = "picsouland_admin_session";
 
@@ -73,6 +75,10 @@ export default function AdminPage() {
   }
 
   async function refreshData() {
+    if (DATABASE_OUTAGE) {
+      return;
+    }
+
     try {
       const [accRes, ordRes, prodRes, promoRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
@@ -539,6 +545,46 @@ export default function AdminPage() {
             Retour a la <a href="/">boutique</a>.
           </p>
         </section>
+      </main>
+    );
+  }
+
+  if (DATABASE_OUTAGE) {
+    return (
+      <main className="admin-shell">
+        <header className="admin-header">
+          <div>
+            <p className="eyebrow">Tableau de bord</p>
+            <h1>Admin PicsouLand</h1>
+            <p className="admin-subtitle">
+              Gestion des comptes clients et du catalogue.
+            </p>
+          </div>
+          <div className="admin-header-actions">
+            <a className="button secondary" href="/">
+              Voir la boutique
+            </a>
+            <button
+              className="button primary"
+              onClick={handleLogout}
+              type="button"
+            >
+              Deconnexion
+            </button>
+          </div>
+        </header>
+
+        <div className="catalogue-error" role="alert">
+          <span className="catalogue-error-code">
+            Error 503 &middot; {DATABASE_OUTAGE_PAYLOAD.code}
+          </span>
+          <h3>{DATABASE_OUTAGE_PAYLOAD.error}</h3>
+          <p>{DATABASE_OUTAGE_PAYLOAD.detail}</p>
+          <p className="catalogue-error-hint">
+            Orders, products, promotions and customer accounts cannot be read or
+            edited until the quota resets.
+          </p>
+        </div>
       </main>
     );
   }
