@@ -2750,3 +2750,56 @@ img {
     width: 100%;
   }
 }
+
+.catalogue-error {
+  margin-top: 8px;
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid rgba(212, 91, 31, 0.3);
+  box-shadow: var(--shadow);
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.catalogue-error-code {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+  background: rgba(212, 91, 31, 0.12);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+
+.catalogue-error h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.catalogue-error p {
+  margin: 0;
+  max-width: 540px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.catalogue-error-hint {
+  font-size: 14px;
+}
+
+.catalogue-error .button {
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .catalogue-error {
+    padding: 24px 18px;
+  }
+
+  .catalogue-error h3 {
+    font-size: 20px;
+  }
+}

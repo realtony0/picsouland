@@ -12,6 +12,13 @@ const STORAGE_KEYS = {
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
 
+const CATALOGUE_ERROR_FALLBACK = {
+  error: "Egress quota exceeded",
+  detail:
+    "The database has reached its limit: this project has exceeded its egress quota. The catalogue is temporarily unavailable.",
+  code: "EGRESS_QUOTA_EXCEEDED",
+};
+
 const heroProducts = [
   {
     brand: "Rodman",
@@ -309,12 +316,28 @@ export default function HomePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedRewardId, setSelectedRewardId] = useState("");
   const [orderHistory, setOrderHistory] = useState([]);
+  const [catalogueError, setCatalogueError] = useState(null);
 
   useEffect(() => {
     fetch("/api/products")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setProducts(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !Array.isArray(data)) {
+          setProducts([]);
+          setCatalogueError(
+            data && data.error ? data : CATALOGUE_ERROR_FALLBACK,
+          );
+          return;
+        }
+
+        setProducts(data);
+        setCatalogueError(null);
+      })
+      .catch(() => {
+        setProducts([]);
+        setCatalogueError(CATALOGUE_ERROR_FALLBACK);
+      });
 
     fetch("/api/promotions")
       .then((res) => (res.ok ? res.json() : []))
@@ -1081,6 +1104,28 @@ export default function HomePage() {
             </p>
           </div>
 
+          {catalogueError ? (
+            <div className="catalogue-error" role="alert">
+              <span className="catalogue-error-code">
+                Error 503 &middot; {catalogueError.code || "EGRESS_QUOTA_EXCEEDED"}
+              </span>
+              <h3>{catalogueError.error}</h3>
+              <p>{catalogueError.detail}</p>
+              <p className="catalogue-error-hint">
+                Products cannot be loaded until the quota resets. Message us on
+                WhatsApp in the meantime and we will take your order there.
+              </p>
+              <a
+                className="button primary"
+                href={`https://wa.me/${whatsappNumber}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Order on WhatsApp
+              </a>
+            </div>
+          ) : (
+            <>
           <div aria-label="Filtres de produits" className="filters" role="tablist">
             {["all", ...Array.from(new Set(products.map((p) => p.brand)))].map((brand) => (
               <button
@@ -1202,6 +1247,8 @@ export default function HomePage() {
             </div>
 
           </div>
+            </>
+          )}
         </section>
 
         <section className="section install-section reveal" id="installer">
