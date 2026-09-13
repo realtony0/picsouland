@@ -574,17 +574,9 @@ export default function AdminPage() {
           </div>
         </header>
 
-        <div className="catalogue-error" role="alert">
-          <span className="catalogue-error-code">
-            Error 503 &middot; {DATABASE_OUTAGE_PAYLOAD.code}
-          </span>
-          <h3>{DATABASE_OUTAGE_PAYLOAD.error}</h3>
-          <p>{DATABASE_OUTAGE_PAYLOAD.detail}</p>
-          <p className="catalogue-error-hint">
-            Orders, products, promotions and customer accounts cannot be read or
-            edited until the quota resets.
-          </p>
-        </div>
+        <p className="data-error" role="alert">
+          Failed to load data: {DATABASE_OUTAGE_PAYLOAD.message}
+        </p>
       </main>
     );
   }

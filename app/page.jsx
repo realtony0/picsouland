@@ -12,12 +12,7 @@ const STORAGE_KEYS = {
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
 
-const CATALOGUE_ERROR_FALLBACK = {
-  error: "Egress quota exceeded",
-  detail:
-    "The database has reached its limit: this project has exceeded its egress quota. Data is temporarily unavailable until the quota resets.",
-  code: "EGRESS_QUOTA_EXCEEDED",
-};
+const CATALOGUE_ERROR_FALLBACK = { message: "Egress quota exceeded" };
 
 const heroProducts = [
   {
@@ -326,7 +321,7 @@ export default function HomePage() {
         if (!res.ok || !Array.isArray(data)) {
           setProducts([]);
           setCatalogueError(
-            data && data.error ? data : CATALOGUE_ERROR_FALLBACK,
+            data && data.message ? data : CATALOGUE_ERROR_FALLBACK,
           );
           return;
         }
@@ -1105,25 +1100,9 @@ export default function HomePage() {
           </div>
 
           {catalogueError ? (
-            <div className="catalogue-error" role="alert">
-              <span className="catalogue-error-code">
-                Error 503 &middot; {catalogueError.code || "EGRESS_QUOTA_EXCEEDED"}
-              </span>
-              <h3>{catalogueError.error}</h3>
-              <p>{catalogueError.detail}</p>
-              <p className="catalogue-error-hint">
-                Products cannot be loaded until the quota resets. Message us on
-                WhatsApp in the meantime and we will take your order there.
-              </p>
-              <a
-                className="button primary"
-                href={`https://wa.me/${whatsappNumber}`}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Order on WhatsApp
-              </a>
-            </div>
+            <p className="data-error" role="alert">
+              Failed to load products: {catalogueError.message}
+            </p>
           ) : (
             <>
           <div aria-label="Filtres de produits" className="filters" role="tablist">
