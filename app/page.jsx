@@ -12,7 +12,7 @@ const STORAGE_KEYS = {
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
 
-const CATALOGUE_ERROR_FALLBACK = { message: "Egress quota exceeded" };
+const CATALOGUE_ERROR_FALLBACK = { message: "Network error" };
 
 const heroProducts = [
   {
@@ -320,9 +320,11 @@ export default function HomePage() {
 
         if (!res.ok || !Array.isArray(data)) {
           setProducts([]);
-          setCatalogueError(
-            data && data.message ? data : CATALOGUE_ERROR_FALLBACK,
-          );
+          setCatalogueError({
+            message:
+              (data && (data.message || data.error)) ||
+              CATALOGUE_ERROR_FALLBACK.message,
+          });
           return;
         }
 
