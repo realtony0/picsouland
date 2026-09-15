@@ -1,15 +1,17 @@
-import { DM_Serif_Display, Space_Grotesk } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
+import MetaPixel from "./meta-pixel";
 
-const displayFont = DM_Serif_Display({
+const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: "400",
+  weight: ["600", "700", "800"],
   variable: "--font-display",
 });
 
-const bodyFont = Space_Grotesk({
+const bodyFont = Instrument_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-body",
 });
 
@@ -28,10 +30,13 @@ export const metadata = {
     title: "PicsouLand",
     statusBarStyle: "default",
   },
+  other: {
+    "facebook-domain-verification": "h3s6y3qrzdqnmluci3ljkjzt2bkexn",
+  },
 };
 
 export const viewport = {
-  themeColor: "#d45b1f",
+  themeColor: "#141414",
 };
 
 export default function RootLayout({ children }) {
@@ -40,6 +45,7 @@ export default function RootLayout({ children }) {
       <body className={`${displayFont.variable} ${bodyFont.variable}`}>
         {children}
         <ServiceWorkerRegister />
+        <MetaPixel />
       </body>
     </html>
   );

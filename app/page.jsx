@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { trackPixelEvent } from "@/lib/fbpixel";
 
 const STORAGE_KEYS = {
   ageGate: "picsouland_age_gate",
@@ -11,6 +12,23 @@ const STORAGE_KEYS = {
 };
 
 const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "221761668636";
+
+const VAPID_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  "BBwaEFQoP3088ylfjxbdsd6mfFeXcG-wwIwcWLWcaYhytBYzj57D4S6ZnKyYJDdYYmv5IQhTgTlK1_RtWC91gTo";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
+}
 
 const heroProducts = [
   {
@@ -33,39 +51,10 @@ const heroProducts = [
   },
 ];
 
-const deliveryZones = [
-  {
-    price: 1000,
-    areas: ["Ngor", "Virage", "Aeroport LSS", "Mamelles", "Ouakam"],
-  },
-  {
-    price: 1500,
-    areas: [
-      "Mermoz",
-      "Sacre-Coeur",
-      "Point E",
-      "Fann",
-      "Grand Dakar",
-      "HLM",
-      "Liberte 1",
-      "Liberte 2",
-      "Liberte 3",
-      "Liberte 4",
-      "Liberte 5",
-      "Liberte 6",
-    ],
-  },
-  {
-    price: 2000,
-    areas: ["Plateau", "Hann", "Bel Air", "Pikine", "Guediawaye"],
-  },
-];
-
 const OTHER_DELIVERY_AREA = "Autre zone (a confirmer)";
 
 const LOYALTY = {
   POINTS_PER_ORDER: 10,
-  WELCOME_BONUS: 10,
   TIERS: [
     { name: "Bronze", minEarned: 0, color: "#cd7f32" },
     { name: "Argent", minEarned: 30, color: "#9aa4b2" },
@@ -155,21 +144,34 @@ function normalizeDbAccount(row) {
     phone: row.phone,
     points: row.points ?? 0,
     totalEarned: row.total_earned ?? row.totalEarned ?? 0,
+    freeDeliveryCredits:
+      row.free_delivery_credits ?? row.freeDeliveryCredits ?? 0,
+    freePuffCredits: row.free_puff_credits ?? row.freePuffCredits ?? 0,
   };
 }
 
-function getDeliveryPrice(area) {
-  if (!area) {
+function getDeliveryPrice(area, zones) {
+  if (!area || !zones) {
     return 0;
   }
 
-  for (const zone of deliveryZones) {
-    if (zone.areas.includes(area)) {
-      return zone.price;
+  const zone = zones.find((z) => z.area === area);
+  return zone ? zone.price : 0;
+}
+
+function groupDeliveryZones(zones) {
+  const groups = new Map();
+
+  for (const zone of zones) {
+    if (!groups.has(zone.price)) {
+      groups.set(zone.price, []);
     }
+    groups.get(zone.price).push(zone.area);
   }
 
-  return 0;
+  return Array.from(groups.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([price, areas]) => ({ price, areas }));
 }
 
 const formatter = new Intl.NumberFormat("fr-FR");
@@ -223,10 +225,20 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
     return "";
   }
 
-  const { reward, rewardDiscount, earnedPoints, currentAccount } = loyalty;
+  const {
+    reward,
+    rewardDiscount,
+    earnedPoints,
+    currentAccount,
+    freeDeliveryDiscount = 0,
+    freePuffDiscount = 0,
+  } = loyalty;
   const subtotal = entries.reduce((sum, item) => sum + item.subtotal, 0);
   const discount = rewardDiscount || 0;
-  const total = Math.max(0, subtotal + (deliveryPrice || 0) - discount);
+  const total = Math.max(
+    0,
+    subtotal + (deliveryPrice || 0) - discount - freeDeliveryDiscount - freePuffDiscount,
+  );
   const lines = [
     "Bonjour, je souhaite commander :",
     "",
@@ -250,6 +262,14 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
     lines.push(
       `Fidelite - ${reward.label} : -${formatPrice(discount)} (${reward.cost} pts)`,
     );
+  }
+
+  if (freeDeliveryDiscount > 0) {
+    lines.push(`Bon roue - Livraison offerte : -${formatPrice(freeDeliveryDiscount)}`);
+  }
+
+  if (freePuffDiscount > 0) {
+    lines.push(`Bon roue - Puff offerte : -${formatPrice(freePuffDiscount)}`);
   }
 
   lines.push(`Total : ${formatPrice(total)}`);
@@ -279,6 +299,7 @@ function buildMessage(entries, customer, deliveryPrice, loyalty = {}) {
 export default function HomePage() {
   const [products, setProducts] = useState([]);
   const [promotions, setPromotions] = useState([]);
+  const [deliveryZones, setDeliveryZones] = useState([]);
   const [ageGateStatus, setAgeGateStatus] = useState("pending");
   const [filter, setFilter] = useState("all");
   const [cart, setCart] = useState({});
@@ -309,6 +330,18 @@ export default function HomePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedRewardId, setSelectedRewardId] = useState("");
   const [orderHistory, setOrderHistory] = useState([]);
+  const [useFreeDelivery, setUseFreeDelivery] = useState(true);
+  const [useFreePuff, setUseFreePuff] = useState(true);
+  const [wheelConfig, setWheelConfig] = useState(null);
+  const [wheelOpen, setWheelOpen] = useState(false);
+  const [wheelOrderId, setWheelOrderId] = useState(null);
+  const [wheelPendingUrl, setWheelPendingUrl] = useState("");
+  const [wheelSpinning, setWheelSpinning] = useState(false);
+  const [wheelAngle, setWheelAngle] = useState(0);
+  const [wheelResult, setWheelResult] = useState(null);
+  const [wheelError, setWheelError] = useState("");
+  const [notifPermission, setNotifPermission] = useState("unsupported");
+  const [notifBusy, setNotifBusy] = useState(false);
 
   useEffect(() => {
     fetch("/api/products")
@@ -319,6 +352,20 @@ export default function HomePage() {
     fetch("/api/promotions")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setPromotions(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    fetch("/api/wheel")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && !data.error) {
+          setWheelConfig(data);
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/delivery-zones")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setDeliveryZones(Array.isArray(data) ? data : []))
       .catch(() => {});
 
     const ageGateValue = window.sessionStorage.getItem(STORAGE_KEYS.ageGate);
@@ -411,6 +458,68 @@ export default function HomePage() {
   }, [ageGateStatus, deviceKind, isStandalone]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return;
+    }
+
+    setNotifPermission(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (!currentAccount || !sessionCredentials) {
+      return;
+    }
+
+    // Charge l'historique des commandes des la connexion (pas seulement a
+    // l'ouverture du compte) pour que la roue soit visible tout de suite
+    // si une commande confirmee y donne droit.
+    fetch("/api/auth/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: sessionCredentials.phone,
+        pin: sessionCredentials.pin,
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setOrderHistory(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    // Reabonnement silencieux : si la permission a deja ete accordee lors
+    // d'une session precedente, on resynchronise l'abonnement sans rien
+    // demander a l'utilisateur.
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        subscribeToPush(sessionCredentials);
+      }
+    }
+
+    // Ouverture de la roue depuis une notification (?wheel=<id-commande>).
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const wheelParam = params.get("wheel");
+
+    if (wheelParam) {
+      const orderId = Number(wheelParam);
+
+      if (Number.isFinite(orderId)) {
+        openWheelForOrder(orderId);
+      }
+
+      params.delete("wheel");
+      const rest = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (rest ? `?${rest}` : ""),
+      );
+    }
+  }, [currentAccount, sessionCredentials]);
+
+  useEffect(() => {
     if (!currentAccount) {
       return;
     }
@@ -463,7 +572,30 @@ export default function HomePage() {
 
   const cartTotal = cartEntries.reduce((sum, item) => sum + item.subtotal, 0);
   const cartCount = cartEntries.reduce((sum, item) => sum + item.quantity, 0);
-  const deliveryPrice = getDeliveryPrice(customer.area);
+  const deliveryPrice = getDeliveryPrice(customer.area, deliveryZones);
+  const groupedDeliveryZones = groupDeliveryZones(deliveryZones);
+
+  function isOrderWheelEligible(order) {
+    if (!wheelConfig?.enabled) {
+      return false;
+    }
+    if (order.status !== "confirmed" || order.wheel_spun) {
+      return false;
+    }
+    if (order.grand_total < (wheelConfig?.minAmount || 0)) {
+      return false;
+    }
+    if (
+      wheelConfig?.cutoffAt &&
+      new Date(order.created_at) < new Date(wheelConfig.cutoffAt)
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  // Commande la plus recente qui donne droit a la roue et pas encore jouee.
+  const eligibleWheelOrder = orderHistory.find(isOrderWheelEligible);
 
   const selectedReward = selectedRewardId
     ? LOYALTY.REWARDS.find((reward) => reward.id === selectedRewardId)
@@ -476,16 +608,35 @@ export default function HomePage() {
   const rewardDiscount = canUseReward
     ? computeRewardDiscount(selectedReward, cartTotal, deliveryPrice, cartEntries)
     : 0;
+
+  // Bons gagnes a la roue (appliques automatiquement, desactivables).
+  const freeDeliveryCredits = currentAccount?.freeDeliveryCredits || 0;
+  const freePuffCredits = currentAccount?.freePuffCredits || 0;
+  const applyFreeDelivery =
+    freeDeliveryCredits > 0 &&
+    useFreeDelivery &&
+    deliveryPrice > 0 &&
+    customer.area !== OTHER_DELIVERY_AREA;
+  const applyFreePuff =
+    freePuffCredits > 0 && useFreePuff && cartEntries.length > 0;
+  const freeDeliveryDiscount = applyFreeDelivery ? deliveryPrice : 0;
+  const freePuffDiscount = applyFreePuff
+    ? Math.max(...cartEntries.map((item) => item.effectivePrice))
+    : 0;
+  const wheelDiscount = freeDeliveryDiscount + freePuffDiscount;
+
   const earnedPoints = currentAccount && cartEntries.length ? pointsForOrder() : 0;
   const grandTotal = Math.max(
     0,
-    cartTotal + deliveryPrice - rewardDiscount,
+    cartTotal + deliveryPrice - rewardDiscount - wheelDiscount,
   );
   const generatedMessage = buildMessage(cartEntries, customer, deliveryPrice, {
     reward: canUseReward ? selectedReward : null,
     rewardDiscount,
     earnedPoints,
     currentAccount,
+    freeDeliveryDiscount,
+    freePuffDiscount,
   });
 
   function openAccountPanel(mode = "signup") {
@@ -547,6 +698,13 @@ export default function HomePage() {
 
   function addToCart(product) {
     changeQuantity(product.id, 1);
+    trackPixelEvent("AddToCart", {
+      content_ids: [product.id],
+      content_name: `${product.brand} ${product.name}`,
+      content_type: "product",
+      value: getEffectivePrice(product),
+      currency: "XOF",
+    });
   }
 
   function updateCustomerField(field, value) {
@@ -612,7 +770,7 @@ export default function HomePage() {
       }));
       setSignupForm({ name: "", phone: "", pin: "" });
       setAuthStatus(
-        `Compte cree ! Tu recois ${LOYALTY.WELCOME_BONUS} Picsou Points de bienvenue.`,
+        "Compte cree ! Commande pour gagner tes premiers Picsou Points.",
       );
     } catch {
       setAuthStatus("Erreur reseau. Reessaie.");
@@ -694,6 +852,15 @@ export default function HomePage() {
     }
 
     const usedPoints = canUseReward && selectedReward ? selectedReward.cost : 0;
+    const orderMessage = generatedMessage;
+    let createdOrderId = null;
+
+    trackPixelEvent("InitiateCheckout", {
+      content_ids: cartEntries.map((item) => item.id),
+      num_items: cartCount,
+      value: grandTotal,
+      currency: "XOF",
+    });
 
     try {
       const res = await fetch("/api/orders", {
@@ -706,7 +873,7 @@ export default function HomePage() {
             id: item.id,
             name: item.name,
             brand: item.brand,
-            price: item.price,
+            price: item.effectivePrice,
             quantity: item.quantity,
             subtotal: item.subtotal,
           })),
@@ -718,6 +885,9 @@ export default function HomePage() {
           grandTotal: grandTotal,
           pointsEarned: earnedPoints,
           pointsUsed: usedPoints,
+          useFreeDelivery: applyFreeDelivery,
+          useFreePuff: applyFreePuff,
+          wheelDiscount: wheelDiscount,
         }),
       });
 
@@ -726,14 +896,185 @@ export default function HomePage() {
       if (res.ok && data.account) {
         setCurrentAccount(normalizeDbAccount(data.account));
       }
+      if (res.ok && data.order) {
+        createdOrderId = data.order.id;
+        trackPixelEvent("Purchase", {
+          content_ids: cartEntries.map((item) => item.id),
+          num_items: cartCount,
+          value: grandTotal,
+          currency: "XOF",
+        });
+      }
     } catch {}
 
     setSelectedRewardId("");
 
-    const cleanNumber = formatWhatsappNumber(whatsappNumber);
+    // La roue ne se joue plus a la commande : elle se debloque quand la
+    // boutique confirme la commande (notification push), ou depuis
+    // "Mes commandes" une fois la commande confirmee.
+    if (createdOrderId && sessionCredentials) {
+      subscribeToPush(sessionCredentials);
+    }
 
-    if (cleanNumber) {
-      window.location.href = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(generatedMessage)}`;
+    const cleanNumber = formatWhatsappNumber(whatsappNumber);
+    const whatsappUrl = cleanNumber
+      ? `https://wa.me/${cleanNumber}?text=${encodeURIComponent(orderMessage)}`
+      : "";
+
+    if (whatsappUrl) {
+      window.location.href = whatsappUrl;
+    }
+  }
+
+  function openWheelForOrder(orderId) {
+    setWheelOrderId(orderId);
+    setWheelPendingUrl("");
+    setWheelResult(null);
+    setWheelError("");
+    setWheelAngle(0);
+    setWheelSpinning(false);
+    setIsAccountOpen(false);
+    setIsCartOpen(false);
+    setWheelOpen(true);
+  }
+
+  async function subscribeToPush(creds) {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      !creds?.phone ||
+      !creds?.pin
+    ) {
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      setNotifPermission("denied");
+      return;
+    }
+
+    setNotifBusy(true);
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      let permission = Notification.permission;
+
+      if (permission === "default") {
+        permission = await Notification.requestPermission();
+      }
+
+      setNotifPermission(permission);
+
+      if (permission !== "granted") {
+        return;
+      }
+
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: creds.phone,
+          pin: creds.pin,
+          subscription: subscription.toJSON(),
+        }),
+      });
+    } catch {
+      // Navigateur non compatible ou permission refusee : on ignore.
+    } finally {
+      setNotifBusy(false);
+    }
+  }
+
+  async function spinWheel() {
+    if (wheelSpinning || wheelResult || !wheelOrderId) {
+      return;
+    }
+
+    setWheelError("");
+    setWheelSpinning(true);
+
+    try {
+      const res = await fetch("/api/wheel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: sessionCredentials?.phone || null,
+          pin: sessionCredentials?.pin || null,
+          orderId: wheelOrderId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setWheelSpinning(false);
+        setWheelError(data.error || "Impossible de tourner la roue.");
+        return;
+      }
+
+      // On s'aligne sur la roue AFFICHEE (celle rendue au montage).
+      const displayed =
+        Array.isArray(wheelConfig?.prizes) && wheelConfig.prizes.length
+          ? wheelConfig.prizes
+          : data.prizes || [];
+      const count = displayed.length || 1;
+      const segAngle = 360 / count;
+      const byId = displayed.findIndex((p) => p.id === data.prize.id);
+      const targetIndex =
+        byId >= 0 ? byId : data.index >= 0 ? data.index : 0;
+      // On aligne le centre du segment gagnant en haut (pointeur), + tours complets.
+      const finalAngle =
+        360 * 5 - (targetIndex * segAngle + segAngle / 2);
+
+      setWheelAngle(finalAngle);
+
+      setTimeout(() => {
+        setWheelSpinning(false);
+        setWheelResult(data.prize);
+        if (data.account) {
+          setCurrentAccount(normalizeDbAccount(data.account));
+        }
+      }, 4200);
+    } catch {
+      setWheelSpinning(false);
+      setWheelError("Erreur reseau. Reessaie.");
+    }
+  }
+
+  function finishWheel() {
+    const url = wheelPendingUrl;
+    setWheelOpen(false);
+    setWheelOrderId(null);
+    setWheelResult(null);
+    setWheelPendingUrl("");
+
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+
+    if (sessionCredentials?.phone && sessionCredentials?.pin) {
+      fetch("/api/auth/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: sessionCredentials.phone,
+          pin: sessionCredentials.pin,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => setOrderHistory(Array.isArray(data) ? data : []))
+        .catch(() => {});
     }
   }
 
@@ -930,6 +1271,9 @@ export default function HomePage() {
               <span className="account-button-label">
                 {currentAccount ? `Compte: ${currentAccount.name}` : "Mon compte"}
               </span>
+              {eligibleWheelOrder ? (
+                <span className="account-wheel-dot" title="Une roue t'attend !" />
+              ) : null}
             </button>
 
             <button
@@ -990,6 +1334,9 @@ export default function HomePage() {
                 {currentAccount
                   ? `Mon compte - ${currentAccount.name}`
                   : "Mon compte / Se connecter"}
+                {eligibleWheelOrder ? (
+                  <span className="account-wheel-dot" title="Une roue t'attend !" />
+                ) : null}
               </button>
             </div>
           ) : null}
@@ -997,11 +1344,12 @@ export default function HomePage() {
 
         <section className="section hero" id="top">
           <div className="hero-copy reveal">
-            <p className="eyebrow">Boutique de puffs au Senegal</p>
-            <h1>PicsouLand simplifie la commande de tes saveurs preferees.</h1>
+            <p className="eyebrow">Puffs premium &middot; Livraison a Dakar</p>
+            <h1>Tes saveurs preferees, commandees en un instant.</h1>
             <p className="hero-text">
-              Choisis parmi les collections Rodman, Coolbar et Hyperjoy, ajoute tes
-              produits au panier, puis envoie ta commande en quelques secondes.
+              Rodman, Coolbar et Hyperjoy reunis dans une seule boutique. Choisis,
+              commande et fais-toi livrer partout a Dakar. Paiement simple, compte
+              securise par PIN.
             </p>
 
             <div className="hero-actions">
@@ -1038,7 +1386,7 @@ export default function HomePage() {
               </article>
               <article>
                 <span>Coolbar</span>
-                <strong>7 000 F CFA</strong>
+                <strong>6 000 F CFA</strong>
               </article>
             </div>
 
@@ -1333,6 +1681,34 @@ export default function HomePage() {
                     })}
                   </select>
                 </label>
+
+                {freeDeliveryCredits > 0 ? (
+                  <label className="wheel-voucher-toggle">
+                    <input
+                      checked={useFreeDelivery}
+                      onChange={(event) => setUseFreeDelivery(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      Utiliser ma <strong>livraison offerte</strong> (bon roue x
+                      {freeDeliveryCredits})
+                    </span>
+                  </label>
+                ) : null}
+
+                {freePuffCredits > 0 ? (
+                  <label className="wheel-voucher-toggle">
+                    <input
+                      checked={useFreePuff}
+                      onChange={(event) => setUseFreePuff(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      Utiliser ma <strong>puff offerte</strong> (bon roue x
+                      {freePuffCredits})
+                    </span>
+                  </label>
+                ) : null}
               </div>
             ) : (
               <div className="loyalty-cart-block loyalty-cart-block-guest">
@@ -1362,7 +1738,7 @@ export default function HomePage() {
                   value={customer.area}
                 >
                   <option value="">Choisis ta zone</option>
-                  {deliveryZones.map((zone) => (
+                  {groupedDeliveryZones.map((zone) => (
                     <optgroup
                       key={zone.price}
                       label={`Livraison ${formatPrice(zone.price)}`}
@@ -1411,6 +1787,18 @@ export default function HomePage() {
                 <div className="cart-reward-row">
                   <span>Fidelite - {selectedReward.label}</span>
                   <span>-{formatPrice(rewardDiscount)}</span>
+                </div>
+              ) : null}
+              {freeDeliveryDiscount > 0 ? (
+                <div className="cart-reward-row">
+                  <span>Bon roue - Livraison offerte</span>
+                  <span>-{formatPrice(freeDeliveryDiscount)}</span>
+                </div>
+              ) : null}
+              {freePuffDiscount > 0 ? (
+                <div className="cart-reward-row">
+                  <span>Bon roue - Puff offerte</span>
+                  <span>-{formatPrice(freePuffDiscount)}</span>
                 </div>
               ) : null}
               <div className="cart-total-row">
@@ -1469,6 +1857,22 @@ export default function HomePage() {
                   <strong>{currentAccount.name}</strong>
                   <span>{formatPhone(currentAccount.phone)}</span>
                 </div>
+
+                {eligibleWheelOrder ? (
+                  <button
+                    className="wheel-cta-banner"
+                    onClick={() => openWheelForOrder(eligibleWheelOrder.id)}
+                    type="button"
+                  >
+                    <span className="wheel-cta-emoji" aria-hidden="true">
+                      🎡
+                    </span>
+                    <span className="wheel-cta-text">
+                      <strong>Ta commande #{eligibleWheelOrder.id} te donne droit a la roue !</strong>
+                      <small>Tape ici pour tenter de gagner un cadeau</small>
+                    </span>
+                  </button>
+                ) : null}
 
                 {(() => {
                   const tier = getLoyaltyTier(currentAccount.totalEarned);
@@ -1537,6 +1941,20 @@ export default function HomePage() {
                   );
                 })()}
 
+                {notifPermission === "default" ? (
+                  <button
+                    className="button secondary full notif-cta"
+                    disabled={notifBusy}
+                    onClick={() => subscribeToPush(sessionCredentials)}
+                    type="button"
+                  >
+                    🔔{" "}
+                    {notifBusy
+                      ? "Activation..."
+                      : "Activer les notifications (tourne la roue des que ta commande est confirmee)"}
+                  </button>
+                ) : null}
+
                 {orderHistory.length > 0 ? (
                   <div className="order-history">
                     <span className="order-history-title">Mes commandes</span>
@@ -1569,6 +1987,15 @@ export default function HomePage() {
                               +{order.points_earned} pts
                               {order.status !== "confirmed" ? " (en attente)" : ""}
                             </span>
+                          ) : null}
+                          {isOrderWheelEligible(order) ? (
+                            <button
+                              className="button primary small order-history-wheel-btn"
+                              onClick={() => openWheelForOrder(order.id)}
+                              type="button"
+                            >
+                              🎡 Tourner la roue
+                            </button>
                           ) : null}
                         </article>
                       ))}
@@ -1852,6 +2279,138 @@ export default function HomePage() {
             </p>
           </section>
         </div>
+      ) : null}
+
+      {wheelOpen ? (
+        (() => {
+          const wheelPrizes =
+            Array.isArray(wheelConfig?.prizes) && wheelConfig.prizes.length
+              ? wheelConfig.prizes
+              : [];
+          const count = wheelPrizes.length || 1;
+          const segAngle = 360 / count;
+          const colors = [
+            "#c79320",
+            "#14110c",
+            "#1f7a6b",
+            "#e0b850",
+            "#3a352d",
+            "#a5790f",
+            "#2a9d8f",
+            "#7a5a12",
+          ];
+          const gradient = `conic-gradient(${wheelPrizes
+            .map(
+              (_, i) =>
+                `${colors[i % colors.length]} ${i * segAngle}deg ${(i + 1) * segAngle}deg`,
+            )
+            .join(", ")})`;
+
+          return (
+            <div className="modal-backdrop" role="presentation">
+              <section
+                aria-modal="true"
+                className="wheel-modal"
+                role="dialog"
+              >
+                <div className="wheel-modal-head">
+                  <h2>La roue Picsou</h2>
+                  <p>
+                    Tourne la roue et tente de gagner des points, une livraison
+                    offerte ou une puff !
+                  </p>
+                </div>
+
+                <div className="wheel-stage">
+                  <span className="wheel-pointer" aria-hidden="true" />
+                  <div
+                    className="wheel-disc"
+                    style={{
+                      background: gradient,
+                      transform: `rotate(${wheelAngle}deg)`,
+                    }}
+                  >
+                    {wheelPrizes.map((prize, i) => (
+                      <div
+                        className="wheel-seg-label"
+                        key={prize.id ?? i}
+                        style={{ transform: `rotate(${i * segAngle + segAngle / 2}deg)` }}
+                      >
+                        <span>{prize.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="wheel-hub" aria-hidden="true" />
+                </div>
+
+                {wheelError ? (
+                  <p className="wheel-error">{wheelError}</p>
+                ) : null}
+
+                {wheelResult ? (
+                  <div className="wheel-result">
+                    {wheelResult.type === "nothing" ? (
+                      <>
+                        <strong>Pas de chance cette fois...</strong>
+                        <p>Retente ta chance a ta prochaine commande !</p>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Bravo, tu as gagne :</strong>
+                        <p className="wheel-prize-name">{wheelResult.label}</p>
+                        {wheelResult.type === "points" ? (
+                          <p>Tes points ont ete credites immediatement.</p>
+                        ) : null}
+                        {wheelResult.type === "delivery" ? (
+                          <p>
+                            Un bon &laquo; livraison offerte &raquo; est ajoute a
+                            ton compte pour ta prochaine commande.
+                          </p>
+                        ) : null}
+                        {wheelResult.type === "puff" ? (
+                          <p>
+                            Un bon &laquo; puff offerte &raquo; est ajoute a ton
+                            compte pour ta prochaine commande.
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="wheel-actions">
+                  {!wheelResult ? (
+                    <button
+                      className="button primary full"
+                      disabled={wheelSpinning}
+                      onClick={spinWheel}
+                      type="button"
+                    >
+                      {wheelSpinning ? "La roue tourne..." : "Tourner la roue"}
+                    </button>
+                  ) : (
+                    <button
+                      className="button primary full"
+                      onClick={finishWheel}
+                      type="button"
+                    >
+                      Envoyer ma commande sur WhatsApp
+                    </button>
+                  )}
+                  {!wheelResult && !wheelSpinning ? (
+                    <button
+                      className="button secondary full"
+                      onClick={finishWheel}
+                      type="button"
+                    >
+                      Passer et envoyer ma commande
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+          );
+        })()
       ) : null}
     </>
   );

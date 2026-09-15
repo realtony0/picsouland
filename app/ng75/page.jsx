@@ -5,6 +5,27 @@ import { useEffect, useMemo, useState } from "react";
 const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "166ng75";
 const ADMIN_SESSION_KEY = "picsouland_admin_session";
 
+const WHEEL_TYPE_OPTIONS = [
+  { value: "points", emoji: "🎯", label: "Points de fidelite" },
+  { value: "delivery", emoji: "🚚", label: "Livraison offerte" },
+  { value: "puff", emoji: "🎁", label: "Puff offerte" },
+  { value: "nothing", emoji: "😢", label: "Aucun gain" },
+];
+
+function wheelTypeInfo(type) {
+  return (
+    WHEEL_TYPE_OPTIONS.find((option) => option.value === type) ||
+    WHEEL_TYPE_OPTIONS[0]
+  );
+}
+
+const WHEEL_PRESET = [
+  { label: "10 Picsou Points", type: "points", value: 10, weight: 50 },
+  { label: "Livraison offerte", type: "delivery", value: 1, weight: 20 },
+  { label: "Une puff offerte", type: "puff", value: 1, weight: 1 },
+  { label: "Perdu", type: "nothing", value: 0, weight: 29 },
+];
+
 const formatter = new Intl.NumberFormat("fr-FR");
 
 function formatPrice(value) {
@@ -39,6 +60,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [accountSearch, setAccountSearch] = useState("");
   const [newProduct, setNewProduct] = useState({
     name: "",
     brand: "Rodman",
@@ -47,6 +69,22 @@ export default function AdminPage() {
   });
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [wheelSettings, setWheelSettings] = useState({
+    enabled: true,
+    min_amount: 6000,
+  });
+  const [wheelPrizes, setWheelPrizes] = useState([]);
+  const [wheelSpins, setWheelSpins] = useState([]);
+  const [wheelAdvanced, setWheelAdvanced] = useState(false);
+  const [newWheelPrize, setNewWheelPrize] = useState({
+    label: "",
+    type: "points",
+    value: "",
+    weight: "",
+  });
+  const [deliveryZones, setDeliveryZones] = useState([]);
+  const [newZone, setNewZone] = useState({ area: "", price: "" });
+  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
     const savedAdmin = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -74,11 +112,13 @@ export default function AdminPage() {
 
   async function refreshData() {
     try {
-      const [accRes, ordRes, prodRes, promoRes] = await Promise.all([
+      const [accRes, ordRes, prodRes, promoRes, wheelRes, zonesRes] = await Promise.all([
         fetch("/api/admin/accounts", { headers: apiHeaders() }),
         fetch("/api/admin/orders", { headers: apiHeaders() }),
         fetch("/api/products"),
         fetch("/api/admin/promotions", { headers: apiHeaders() }),
+        fetch("/api/admin/wheel", { headers: apiHeaders() }),
+        fetch("/api/delivery-zones"),
       ]);
 
       if (accRes.ok) {
@@ -103,8 +143,326 @@ export default function AdminPage() {
       if (promoRes.ok) {
         setPromos(await promoRes.json());
       }
+
+      if (wheelRes.ok) {
+        const wheelData = await wheelRes.json();
+        if (wheelData.settings) {
+          setWheelSettings(wheelData.settings);
+        }
+        setWheelPrizes(wheelData.prizes || []);
+        setWheelSpins(wheelData.spins || []);
+      }
+
+      if (zonesRes.ok) {
+        setDeliveryZones(await zonesRes.json());
+      }
     } catch {
       setNotice("Erreur de chargement des donnees.");
+    }
+  }
+
+  async function runMigration() {
+    setMigrating(true);
+    setNotice("Migration en cours...");
+    try {
+      const res = await fetch("/api/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: adminPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice("Erreur migration : " + (data.error || "echec"));
+        return;
+      }
+      setNotice("Migration terminee. Base de donnees a jour.");
+      await refreshData();
+    } catch {
+      setNotice("Erreur reseau pendant la migration.");
+    } finally {
+      setMigrating(false);
+    }
+  }
+
+  async function addDeliveryZone() {
+    if (!newZone.area.trim() || newZone.price === "") {
+      setNotice("Nom de zone et prix requis.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/delivery-zones", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          area: newZone.area.trim(),
+          price: Number(newZone.price) || 0,
+          sortOrder: deliveryZones.length + 1,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice("Erreur : " + (data.error || "ajout impossible"));
+        return;
+      }
+      setDeliveryZones((prev) => [...prev, data]);
+      setNewZone({ area: "", price: "" });
+      setNotice(`Zone "${data.area}" ajoutee.`);
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function updateDeliveryZone(id, patch) {
+    setDeliveryZones((prev) =>
+      prev.map((z) => (z.id === id ? { ...z, ...patch } : z)),
+    );
+    try {
+      const res = await fetch("/api/admin/delivery-zones", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id, ...patch }),
+      });
+      if (!res.ok) {
+        setNotice("Erreur : zone non enregistree.");
+      }
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function deleteDeliveryZone(id) {
+    if (!window.confirm("Supprimer cette zone de livraison ?")) {
+      return;
+    }
+    try {
+      await fetch("/api/admin/delivery-zones", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      setDeliveryZones((prev) => prev.filter((z) => z.id !== id));
+      setNotice("Zone supprimee.");
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function saveWheelSettings(patch) {
+    const next = { ...wheelSettings, ...patch };
+    setWheelSettings(next);
+    try {
+      await fetch("/api/admin/wheel", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          settings: {
+            enabled: next.enabled,
+            minAmount: Number(next.min_amount) || 0,
+          },
+        }),
+      });
+      setNotice("Reglages de la roue mis a jour.");
+    } catch {
+      setNotice("Erreur : reglages roue non enregistres.");
+    }
+  }
+
+  async function resetWheelCutoff() {
+    const confirmed = window.confirm(
+      "Seules les commandes passees a partir de maintenant pourront " +
+        "debloquer la roue. Les commandes plus anciennes, meme confirmees, " +
+        "ne seront plus jouables. Continuer ?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/wheel", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          settings: {
+            enabled: wheelSettings.enabled,
+            minAmount: Number(wheelSettings.min_amount) || 0,
+            resetCutoff: true,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.settings) {
+        setWheelSettings((s) => ({ ...s, cutoff_at: data.settings.cutoff_at }));
+      }
+      setNotice("Seules les commandes passees a partir de maintenant sont eligibles.");
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  // En mode simple, les probabilites sont toujours reequilibrees automatiquement :
+  // l'admin n'a jamais a raisonner en pourcentages.
+  async function equalizeWheelPrizes(list) {
+    const source = list || wheelPrizes;
+    const activeOnes = source.filter((p) => p.active);
+
+    if (activeOnes.length === 0) {
+      return;
+    }
+
+    const share = Math.floor(100 / activeOnes.length);
+    const remainder = 100 - share * activeOnes.length;
+
+    const updates = activeOnes.map((p, i) => ({
+      id: p.id,
+      weight: share + (i < remainder ? 1 : 0),
+    }));
+
+    await Promise.all(
+      updates.map((u) => updateWheelPrize(u.id, { weight: u.weight })),
+    );
+  }
+
+  async function addWheelPrize() {
+    if (!newWheelPrize.label.trim()) {
+      setNotice("Donne un nom au gain.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/wheel", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          label: newWheelPrize.label.trim(),
+          type: newWheelPrize.type,
+          value: Number(newWheelPrize.value) || 0,
+          weight: Number(newWheelPrize.weight) || 0,
+          active: true,
+          sortOrder: wheelPrizes.length + 1,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNotice("Erreur : " + (data.error || "ajout impossible"));
+        return;
+      }
+      const next = [...wheelPrizes, data];
+      setWheelPrizes(next);
+      setNewWheelPrize({ label: "", type: "points", value: "", weight: "" });
+
+      if (!wheelAdvanced) {
+        await equalizeWheelPrizes(next);
+      }
+      setNotice(`Gain "${data.label}" ajoute.`);
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function updateWheelPrize(id, patch) {
+    setWheelPrizes((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    );
+    try {
+      await fetch("/api/admin/wheel", {
+        method: "PATCH",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id, ...patch }),
+      });
+    } catch {
+      setNotice("Erreur : gain non enregistre.");
+    }
+  }
+
+  async function toggleWheelPrizeActive(id, checked) {
+    await updateWheelPrize(id, { active: checked });
+
+    if (!wheelAdvanced) {
+      const next = wheelPrizes.map((p) =>
+        p.id === id ? { ...p, active: checked } : p,
+      );
+      await equalizeWheelPrizes(next);
+    }
+  }
+
+  async function deleteWheelPrize(id) {
+    if (!window.confirm("Supprimer ce gain ?")) {
+      return;
+    }
+    try {
+      await fetch("/api/admin/wheel", {
+        method: "DELETE",
+        headers: apiHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      const next = wheelPrizes.filter((p) => p.id !== id);
+      setWheelPrizes(next);
+
+      if (!wheelAdvanced) {
+        await equalizeWheelPrizes(next);
+      }
+      setNotice("Gain supprime.");
+    } catch {
+      setNotice("Erreur reseau.");
+    }
+  }
+
+  async function applyWheelPreset() {
+    const confirmed = window.confirm(
+      "Remplacer tous les gains actuels de la roue par :\n" +
+        "- Livraison offerte : 20%\n" +
+        "- Puff offerte : 1%\n" +
+        "- 10 Picsou Points : 50%\n" +
+        "- Perdu : 29%\n\n" +
+        "Continuer ?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setNotice("Application de la configuration...");
+
+    try {
+      await Promise.all(
+        wheelPrizes.map((prize) =>
+          fetch("/api/admin/wheel", {
+            method: "DELETE",
+            headers: apiHeaders(),
+            body: JSON.stringify({ id: prize.id }),
+          }),
+        ),
+      );
+
+      const results = await Promise.all(
+        WHEEL_PRESET.map((prize, i) =>
+          fetch("/api/admin/wheel", {
+            method: "POST",
+            headers: apiHeaders(),
+            body: JSON.stringify({
+              label: prize.label,
+              type: prize.type,
+              value: prize.value,
+              weight: prize.weight,
+              active: true,
+              sortOrder: i + 1,
+            }),
+          }),
+        ),
+      );
+
+      setWheelAdvanced(true);
+      await refreshData();
+
+      if (results.some((res) => !res.ok)) {
+        setNotice("Configuration partiellement appliquee : verifie les gains.");
+      } else {
+        setNotice(
+          "Configuration appliquee : livraison 20%, puff 1%, 10 pts 50%, perdu 29%.",
+        );
+      }
+    } catch {
+      setNotice("Erreur reseau pendant l'application de la configuration.");
     }
   }
 
@@ -506,6 +864,21 @@ export default function AdminPage() {
     });
   }, [products, brandFilter, search]);
 
+  const filteredAccounts = useMemo(() => {
+    const q = accountSearch.trim().toLowerCase();
+
+    if (!q) {
+      return accounts;
+    }
+
+    return accounts.filter((account) => {
+      const name = (account.name || "").toLowerCase();
+      const phone = (account.phone || "").toLowerCase();
+
+      return name.includes(q) || phone.includes(q);
+    });
+  }, [accounts, accountSearch]);
+
   if (!isAuthed) {
     return (
       <main className="admin-gate">
@@ -604,6 +977,20 @@ export default function AdminPage() {
         >
           Clients
         </button>
+        <button
+          className={`admin-tab ${activeTab === "wheel" ? "active" : ""}`}
+          onClick={() => setActiveTab("wheel")}
+          type="button"
+        >
+          Roue
+        </button>
+        <button
+          className={`admin-tab ${activeTab === "delivery" ? "active" : ""}`}
+          onClick={() => setActiveTab("delivery")}
+          type="button"
+        >
+          Livraison
+        </button>
       </nav>
 
       {activeTab === "dashboard" ? (
@@ -647,6 +1034,31 @@ export default function AdminPage() {
       </section>
       ) : null}
 
+      {activeTab === "dashboard" ? (
+      <section className="admin-section admin-maintenance">
+        <div className="admin-section-head">
+          <div>
+            <h2>Base de donnees</h2>
+            <p className="admin-section-copy">
+              Cree ou met a jour les tables necessaires (roue, zones de
+              livraison, etc.) sans rien casser. A relancer apres chaque
+              nouvelle fonctionnalite qui touche la base.
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button
+              className="button primary"
+              disabled={migrating}
+              onClick={runMigration}
+              type="button"
+            >
+              {migrating ? "Migration en cours..." : "Lancer la migration"}
+            </button>
+          </div>
+        </div>
+      </section>
+      ) : null}
+
       {activeTab === "clients" ? (
       <section className="admin-section">
         <div className="admin-section-head">
@@ -658,6 +1070,13 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="admin-section-actions">
+            <input
+              className="admin-search-input"
+              type="search"
+              placeholder="Rechercher un nom ou un numero..."
+              value={accountSearch}
+              onChange={(event) => setAccountSearch(event.target.value)}
+            />
             <button className="button secondary" onClick={refreshData} type="button">
               Rafraichir
             </button>
@@ -665,6 +1084,7 @@ export default function AdminPage() {
         </div>
 
         {accounts.length ? (
+          filteredAccounts.length ? (
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -677,7 +1097,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((account) => (
+                {filteredAccounts.map((account) => (
                   <tr key={account.phone}>
                     <td data-label="Nom">{account.name}</td>
                     <td data-label="Telephone">{formatPhone(account.phone)}</td>
@@ -714,11 +1134,486 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+          ) : (
+            <p className="admin-empty">
+              Aucun compte ne correspond a « {accountSearch} ».
+            </p>
+          )
         ) : (
           <p className="admin-empty">
             Aucun compte client memorise sur cet appareil.
           </p>
         )}
+      </section>
+      ) : null}
+
+      {activeTab === "wheel" ? (
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>Roue de la fortune</h2>
+            <p className="admin-section-copy">
+              Apres chaque commande eligible, le client peut tourner la roue.
+              {wheelAdvanced
+                ? " Le resultat est tire au sort selon les probabilites reglees ci-dessous."
+                : " Les chances se repartissent automatiquement entre les gains actifs, sans calcul de ta part."}
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button className="button primary" onClick={applyWheelPreset} type="button">
+              Appliquer : livraison 20% / puff 1% / 10 pts 50% / perdu 29%
+            </button>
+            <button className="button secondary" onClick={refreshData} type="button">
+              Rafraichir
+            </button>
+          </div>
+        </div>
+
+        <div className="wheel-mode-toggle">
+          <button
+            className={`wheel-mode-btn ${!wheelAdvanced ? "active" : ""}`}
+            onClick={async () => {
+              setWheelAdvanced(false);
+              await equalizeWheelPrizes();
+            }}
+            type="button"
+          >
+            Mode simple
+            <small>Chances egales, aucun calcul</small>
+          </button>
+          <button
+            className={`wheel-mode-btn ${wheelAdvanced ? "active" : ""}`}
+            onClick={() => setWheelAdvanced(true)}
+            type="button"
+          >
+            Mode avance
+            <small>Regler chaque probabilite</small>
+          </button>
+        </div>
+
+        <div className="wheel-admin-settings">
+          <label className="wheel-admin-switch">
+            <input
+              checked={wheelSettings.enabled}
+              onChange={(event) =>
+                saveWheelSettings({ enabled: event.target.checked })
+              }
+              type="checkbox"
+            />
+            <span>
+              Roue active
+              <small>{wheelSettings.enabled ? "En marche" : "Desactivee"}</small>
+            </span>
+          </label>
+          <label className="wheel-admin-min">
+            Montant minimum de commande (F CFA)
+            <input
+              onChange={(event) =>
+                setWheelSettings((s) => ({ ...s, min_amount: event.target.value }))
+              }
+              onBlur={(event) =>
+                saveWheelSettings({ min_amount: Number(event.target.value) || 0 })
+              }
+              type="number"
+              value={wheelSettings.min_amount}
+            />
+          </label>
+        </div>
+
+        <div className="wheel-cutoff-box">
+          <div>
+            <strong>Commandes eligibles depuis</strong>
+            <p>
+              {wheelSettings.cutoff_at
+                ? new Date(wheelSettings.cutoff_at).toLocaleString("fr-FR")
+                : "Toutes les commandes confirmees (aucune limite de date)"}
+            </p>
+          </div>
+          <button className="button secondary" onClick={resetWheelCutoff} type="button">
+            Exclure les commandes anterieures a maintenant
+          </button>
+        </div>
+
+        {(() => {
+          const activePrizes = wheelPrizes.filter((p) => p.active);
+          const totalWeight = activePrizes.reduce(
+            (sum, p) => sum + (Number(p.weight) || 0),
+            0,
+          );
+          const totalOk = activePrizes.length === 0 || totalWeight === 100;
+
+          return (
+            <>
+              {wheelAdvanced ? (
+                <div className={`wheel-total-banner ${totalOk ? "ok" : "warn"}`}>
+                  <span>
+                    {activePrizes.length === 0
+                      ? "Aucun gain actif : la roue ne peut pas tourner."
+                      : totalOk
+                        ? `Total des probabilites actives : 100% ✓`
+                        : `Total des probabilites actives : ${totalWeight}% (devrait faire 100%)`}
+                  </span>
+                  <button
+                    className="button secondary small"
+                    onClick={() => equalizeWheelPrizes()}
+                    type="button"
+                  >
+                    Repartir equitablement
+                  </button>
+                </div>
+              ) : activePrizes.length === 0 ? (
+                <div className="wheel-total-banner warn">
+                  <span>Aucun gain actif : la roue ne peut pas tourner.</span>
+                </div>
+              ) : null}
+
+              <div className="wheel-prize-cards">
+                {wheelPrizes.map((prize) => {
+                  const proba =
+                    prize.active && totalWeight > 0
+                      ? Math.round(((Number(prize.weight) || 0) / totalWeight) * 100)
+                      : 0;
+                  const info = wheelTypeInfo(prize.type);
+
+                  return (
+                    <article
+                      className={`wheel-prize-card ${prize.active ? "" : "inactive"}`}
+                      key={prize.id}
+                    >
+                      <div className="wheel-prize-card-row">
+                        <span className="wheel-prize-emoji" aria-hidden="true">
+                          {info.emoji}
+                        </span>
+                        <input
+                          className="wheel-prize-label"
+                          onChange={(event) =>
+                            setWheelPrizes((prev) =>
+                              prev.map((p) =>
+                                p.id === prize.id
+                                  ? { ...p, label: event.target.value }
+                                  : p,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateWheelPrize(prize.id, { label: event.target.value })
+                          }
+                          placeholder="Nom du gain"
+                          value={prize.label}
+                        />
+                        <label className="wheel-admin-switch wheel-prize-active">
+                          <input
+                            checked={prize.active}
+                            onChange={(event) =>
+                              toggleWheelPrizeActive(prize.id, event.target.checked)
+                            }
+                            type="checkbox"
+                          />
+                          <span>{prize.active ? "Actif" : "Coupe"}</span>
+                        </label>
+                        <button
+                          className="wheel-prize-delete"
+                          onClick={() => deleteWheelPrize(prize.id)}
+                          title="Supprimer ce gain"
+                          type="button"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="wheel-prize-card-row">
+                        <label className="wheel-prize-field">
+                          Ce que gagne le client
+                          <select
+                            onChange={(event) =>
+                              updateWheelPrize(prize.id, { type: event.target.value })
+                            }
+                            value={prize.type}
+                          >
+                            {WHEEL_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.emoji} {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        {prize.type === "points" ? (
+                          <label className="wheel-prize-field wheel-prize-field-narrow">
+                            Combien de points
+                            <input
+                              onChange={(event) =>
+                                setWheelPrizes((prev) =>
+                                  prev.map((p) =>
+                                    p.id === prize.id
+                                      ? { ...p, value: event.target.value }
+                                      : p,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateWheelPrize(prize.id, {
+                                  value: Number(event.target.value) || 0,
+                                })
+                              }
+                              type="number"
+                              value={prize.value}
+                            />
+                          </label>
+                        ) : null}
+
+                        {wheelAdvanced ? (
+                          <label className="wheel-prize-field wheel-prize-field-narrow">
+                            Probabilite (%)
+                            <input
+                              onChange={(event) =>
+                                setWheelPrizes((prev) =>
+                                  prev.map((p) =>
+                                    p.id === prize.id
+                                      ? { ...p, weight: event.target.value }
+                                      : p,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateWheelPrize(prize.id, {
+                                  weight: Number(event.target.value) || 0,
+                                })
+                              }
+                              type="number"
+                              value={prize.weight}
+                            />
+                          </label>
+                        ) : (
+                          <span className="wheel-prize-chance-badge">
+                            {prize.active ? `${proba}% de chance` : "Ne sort pas"}
+                          </span>
+                        )}
+
+                        {wheelAdvanced && !totalOk && prize.active ? (
+                          <span className="wheel-prize-real-proba">
+                            = {proba}% des tirages reels
+                          </span>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
+
+        <div className="wheel-admin-add">
+          <h3>Ajouter un gain</h3>
+          <div className="wheel-admin-add-row">
+            <input
+              onChange={(event) =>
+                setNewWheelPrize((p) => ({ ...p, label: event.target.value }))
+              }
+              placeholder="Nom du gain (ex : Un paquet offert)"
+              value={newWheelPrize.label}
+            />
+            <select
+              onChange={(event) =>
+                setNewWheelPrize((p) => ({
+                  ...p,
+                  type: event.target.value,
+                  value: event.target.value === "points" ? p.value : "",
+                }))
+              }
+              value={newWheelPrize.type}
+            >
+              {WHEEL_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.emoji} {option.label}
+                </option>
+              ))}
+            </select>
+            {newWheelPrize.type === "points" ? (
+              <input
+                onChange={(event) =>
+                  setNewWheelPrize((p) => ({ ...p, value: event.target.value }))
+                }
+                placeholder="Points a gagner"
+                type="number"
+                value={newWheelPrize.value}
+              />
+            ) : null}
+            {wheelAdvanced ? (
+              <input
+                onChange={(event) =>
+                  setNewWheelPrize((p) => ({ ...p, weight: event.target.value }))
+                }
+                placeholder="Probabilite (%)"
+                type="number"
+                value={newWheelPrize.weight}
+              />
+            ) : null}
+            <button className="button primary" onClick={addWheelPrize} type="button">
+              Ajouter
+            </button>
+          </div>
+          <p className="admin-section-copy">
+            {wheelAdvanced
+              ? "Astuce : apres avoir ajoute ou coupe un gain, clique sur « Repartir equitablement » pour que les probabilites retombent automatiquement sur 100%."
+              : "En mode simple, les chances de chaque gain actif se rajustent automatiquement des que tu ajoutes, coupes ou supprimes un gain."}
+          </p>
+        </div>
+
+        <div className="wheel-admin-spins">
+          <h3>Derniers tours ({wheelSpins.length})</h3>
+          {wheelSpins.length ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Client</th>
+                    <th>Commande</th>
+                    <th>Gain</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wheelSpins.map((spin) => (
+                    <tr key={spin.id}>
+                      <td data-label="Date">
+                        {spin.created_at
+                          ? new Date(spin.created_at).toLocaleString("fr-FR")
+                          : "-"}
+                      </td>
+                      <td data-label="Client">{formatPhone(spin.account_phone)}</td>
+                      <td data-label="Commande">#{spin.order_id}</td>
+                      <td data-label="Gain">
+                        {spin.prize_type === "nothing"
+                          ? "Perdu"
+                          : spin.prize_label}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="admin-empty">Aucun tour de roue pour le moment.</p>
+          )}
+        </div>
+      </section>
+      ) : null}
+
+      {activeTab === "delivery" ? (
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>Zones de livraison</h2>
+            <p className="admin-section-copy">
+              Chaque zone a un prix de livraison. Les clients les retrouvent
+              groupees par prix dans le formulaire de commande.
+            </p>
+          </div>
+          <div className="admin-section-actions">
+            <button className="button secondary" onClick={refreshData} type="button">
+              Rafraichir
+            </button>
+          </div>
+        </div>
+
+        {deliveryZones.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th>Prix de livraison</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveryZones
+                  .slice()
+                  .sort((a, b) => a.price - b.price || a.area.localeCompare(b.area))
+                  .map((zone) => (
+                    <tr key={zone.id}>
+                      <td data-label="Zone">
+                        <input
+                          className="wheel-cell-input"
+                          onChange={(event) =>
+                            setDeliveryZones((prev) =>
+                              prev.map((z) =>
+                                z.id === zone.id
+                                  ? { ...z, area: event.target.value }
+                                  : z,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateDeliveryZone(zone.id, { area: event.target.value })
+                          }
+                          value={zone.area}
+                        />
+                      </td>
+                      <td data-label="Prix de livraison">
+                        <input
+                          className="wheel-cell-input wheel-cell-num"
+                          onChange={(event) =>
+                            setDeliveryZones((prev) =>
+                              prev.map((z) =>
+                                z.id === zone.id
+                                  ? { ...z, price: event.target.value }
+                                  : z,
+                              ),
+                            )
+                          }
+                          onBlur={(event) =>
+                            updateDeliveryZone(zone.id, {
+                              price: Number(event.target.value) || 0,
+                            })
+                          }
+                          type="number"
+                          value={zone.price}
+                        />
+                      </td>
+                      <td data-label="Actions">
+                        <button
+                          className="button danger small"
+                          onClick={() => deleteDeliveryZone(zone.id)}
+                          type="button"
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="admin-empty">Aucune zone de livraison configuree.</p>
+        )}
+
+        <div className="wheel-admin-add">
+          <h3>Ajouter une zone</h3>
+          <div className="wheel-admin-add-row">
+            <input
+              onChange={(event) =>
+                setNewZone((z) => ({ ...z, area: event.target.value }))
+              }
+              placeholder="Nom de la zone (ex : Ouakam)"
+              value={newZone.area}
+            />
+            <input
+              onChange={(event) =>
+                setNewZone((z) => ({ ...z, price: event.target.value }))
+              }
+              placeholder="Prix (F CFA)"
+              type="number"
+              value={newZone.price}
+            />
+            <button className="button primary" onClick={addDeliveryZone} type="button">
+              Ajouter
+            </button>
+          </div>
+        </div>
       </section>
       ) : null}
 
